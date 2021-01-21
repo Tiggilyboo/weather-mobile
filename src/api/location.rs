@@ -49,7 +49,7 @@ pub fn get_location_data(search: &str) -> Option<LocationPoint> {
             Some(LocationPoint {
                 lat: lat as f32, 
                 lon: lon as f32,
-                location: properties["label"].to_string(),
+                location: properties.to_string(),
             })
         } else {
             None

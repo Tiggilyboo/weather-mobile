@@ -1,5 +1,4 @@
 extern crate gtk;
-extern crate glib;
 extern crate flume;
 extern crate serde;
 extern crate serde_json;
@@ -31,14 +30,12 @@ use flume::{
 use gtk::ApplicationWindow;
 
 use gtk::prelude::*;
-use gio::prelude::*;
+use gtk::gio::prelude::*;
 use gtk::Application;
 
 fn initialise_ui(app: &gtk::Application) {
     let window = ApplicationWindow::new(app);
-    window.set_title("Weather");
-    window.set_position(gtk::WindowPosition::Center);
-    window.set_default_size(720, 1440);
+    window.set_title(Some("Weather"));
 
     let weather_app = WeatherApplication::new(&window);
     let (tx, rx) = unbounded();
@@ -46,7 +43,7 @@ fn initialise_ui(app: &gtk::Application) {
     spawn_local_handler(RefCell::new(weather_app), rx); 
     let prefs = load_preferences();
     start_communication_thread(prefs, tx);
-    window.show_all();
+    window.show();
 }
 
 fn load_preferences() -> WeatherPreferences {
@@ -68,7 +65,7 @@ fn load_preferences() -> WeatherPreferences {
 }
 
 fn spawn_local_handler(weather_app: RefCell<WeatherApplication>, receiver: Receiver<WeatherUpdate>) {
-    let main_ctx = glib::MainContext::default();
+    let main_ctx = gtk::glib::MainContext::default();
     let future = async move {
         while let Some(item) = receiver.try_recv().ok() {
             if let mut app = weather_app.borrow_mut() {

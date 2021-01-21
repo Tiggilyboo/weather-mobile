@@ -25,11 +25,11 @@ impl WeatherApplication {
         let feels_like = Label::new(None);
         let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10); 
 
-        vbox.add(&temperature);
-        vbox.add(&feels_like);
-        vbox.add(&location);
+        vbox.append(&temperature);
+        vbox.append(&feels_like);
+        vbox.append(&location);
 
-        window.add(&vbox);
+        window.set_child(Some(&vbox));
 
         let wa = WeatherApplication {
             temperature,
@@ -44,9 +44,7 @@ impl WeatherApplication {
     pub fn update(&mut self, update: WeatherUpdate) {
         match update {
             WeatherUpdate::Data(data) => self.update_weather(&data),
-            WeatherUpdate::Location(location) => {
-                self.location.set_text(&format!("Location: {}", location));
-            },
+            WeatherUpdate::Location(location) => self.update_location(&location),
         }
     }
 
@@ -71,5 +69,9 @@ impl WeatherApplication {
         println!("Loading {} from file for image status", icon_path.to_str().unwrap());
         
         Image::from_file(icon_path)
+    }
+
+    fn update_location(&mut self, location: &str) {
+        self.location.set_text(location);
     }
 }
