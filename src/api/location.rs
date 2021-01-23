@@ -40,16 +40,17 @@ pub fn get_location_data(search: &str) -> Option<LocationPoint> {
             .find(|f| f["properties"]["match_type"] == "exact");
         
         if let Some(feature) = exact_match {
-            let properties = &feature["property"];
+            let properties = &feature["properties"];
             let coords = &feature["geometry"]["coordinates"].as_array()
                 .expect("Unable to find feature coordinates");
             let lon = coords[0].as_f64().unwrap();
             let lat = coords[1].as_f64().unwrap();
+            let location = String::from(properties["label"].as_str().unwrap());
 
             Some(LocationPoint {
                 lat: lat as f32, 
                 lon: lon as f32,
-                location: properties.to_string(),
+                location,
             })
         } else {
             None

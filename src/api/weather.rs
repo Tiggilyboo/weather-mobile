@@ -54,7 +54,7 @@ fn base_url() -> String {
         OPEN_WEATHER_API_VERSION);
 }
 
-pub fn get_weather_data(units: Units, lat: f32, lon: f32) -> WeatherData {
+pub async fn get_weather_data(units: Units, lat: f32, lon: f32) -> WeatherData {
     let url = format!("{}/onecall?lat={}&lon={}&units={}&appid={}",
        base_url(),
        lat, lon,
@@ -62,9 +62,10 @@ pub fn get_weather_data(units: Units, lat: f32, lon: f32) -> WeatherData {
        OPEN_WEATHER_API_KEY);
     println!("weather get: {}", url);
 
-    let response = isahc::get(url);
+    let response = isahc::get_async(url).await;
     if let Some(mut body) = response.ok() {
-        let text = body.text().unwrap();
+        let text = body.text().await;
+        let text = text.unwrap();
         println!("weather got: {}", text);
         
         let mut data: WeatherData = serde_json::from_str(&text)

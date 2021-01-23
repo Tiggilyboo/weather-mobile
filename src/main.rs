@@ -15,74 +15,30 @@ use api::{
 };
 use preferences::{
     WeatherPreferences,
+    load_preferences,
 };
 use ui::{
     WeatherApplication,
+    load_ui,
 };
 use rpc::WeatherUpdate;
 use std::cell::RefCell;
 
-use flume::{
-    Receiver,
-    Sender,
-    unbounded,
-};
 use gtk::ApplicationWindow;
-
-use gtk::prelude::*;
-use gtk::gio::prelude::*;
 use gtk::Application;
+use gtk::prelude::*;
 
 fn initialise_ui(app: &gtk::Application) {
     let window = ApplicationWindow::new(app);
     window.set_title(Some("Weather"));
+    window.set_show_menubar(false);
 
     let weather_app = WeatherApplication::new(&window);
-    let (tx, rx) = unbounded();
 
-    spawn_local_handler(RefCell::new(weather_app), rx); 
     let prefs = load_preferences();
-    start_communication_thread(prefs, tx);
+    load_ui(RefCell::new(weather_app), prefs);
+
     window.show();
-}
-
-fn load_preferences() -> WeatherPreferences {
-    if let Some(prefs) = WeatherPreferences::from_config() {
-        prefs
-    } else {
-        if let Some(location_data) = api::location::get_location_data("Ruinerwold") {
-            let new_prefs = WeatherPreferences::new(
-                location_data.lat, 
-                location_data.lon, 
-                location_data.location);
-            new_prefs.save_config();
-            new_prefs
-        } else {
-            panic!("Unable to get location data")
-        }   
-
-    }
-}
-
-fn spawn_local_handler(weather_app: RefCell<WeatherApplication>, receiver: Receiver<WeatherUpdate>) {
-    let main_ctx = gtk::glib::MainContext::default();
-    let future = async move {
-        while let Some(item) = receiver.try_recv().ok() {
-            if let mut app = weather_app.borrow_mut() {
-                app.update(item);
-            }
-        }
-    };
-    main_ctx.spawn_local(future);
-}
-
-fn start_communication_thread(preferences: WeatherPreferences, sender: Sender<WeatherUpdate>) {
-   let data: WeatherData = api::weather::get_weather_data(
-       Units::Metric, 
-       preferences.lat, 
-       preferences.lon);
-   let _ = sender.send(WeatherUpdate::Data(data));
-   let _ = sender.send(WeatherUpdate::Location(preferences.location));
 }
 
 fn main() {
