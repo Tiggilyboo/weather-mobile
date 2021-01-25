@@ -5,7 +5,7 @@ use serde::{
     Serialize,
     Deserialize,
 };
-use super::api::location::get_location_data;
+use super::api::location::*;
 
 #[derive(Serialize, Deserialize)]
 pub struct WeatherPreferences {
@@ -15,24 +15,6 @@ pub struct WeatherPreferences {
 }
 
 const WEATHER_CONFIG_FILE: &str = "weather.json";
-
-pub fn load_preferences() -> WeatherPreferences {
-    if let Some(prefs) = WeatherPreferences::from_config() {
-        prefs
-    } else {
-        if let Some(location_data) = get_location_data("Ruinerwold") {
-            let new_prefs = WeatherPreferences::new(
-                location_data.lat, 
-                location_data.lon, 
-                location_data.location);
-            new_prefs.save_config();
-            new_prefs
-        } else {
-            panic!("Unable to get location data")
-        }   
-
-    }
-}
 
 fn config_path() -> PathBuf {
     if let Some(mut dir) = config_dir() {

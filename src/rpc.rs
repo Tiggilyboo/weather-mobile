@@ -3,5 +3,8 @@ use super::api::location::LocationPoint;
 
 pub enum WeatherUpdate {
     Data(WeatherData),
-    Location(String),
+    Location(Option<String>),
+    SearchLocations(String),
+    SetLocations(Vec<LocationPoint>),
+    Exit,
 }

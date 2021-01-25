@@ -8,21 +8,16 @@ mod ui;
 mod preferences;
 mod rpc;
 
-use api::{
-    units::Units,
-    weather::WeatherData,
-    location::LocationPoint,
-};
 use preferences::{
     WeatherPreferences,
-    load_preferences,
 };
 use ui::{
     WeatherApplication,
-    load_ui,
 };
-use rpc::WeatherUpdate;
-use std::cell::RefCell;
+use flume::{
+    unbounded,
+};
+use std::sync::{Arc, Mutex, Weak};
 
 use gtk::ApplicationWindow;
 use gtk::Application;
@@ -33,16 +28,44 @@ fn initialise_ui(app: &gtk::Application) {
     window.set_title(Some("Weather"));
     window.set_show_menubar(false);
 
-    let weather_app = WeatherApplication::new(&window);
+    let app = unsafe {
+        Weak::from_raw(app)
+    };
 
-    let prefs = load_preferences();
-    load_ui(RefCell::new(weather_app), prefs);
+    let weather_app = WeatherApplication::new(app, &window);
+    let weather_prefs = WeatherPreferences::from_config();
+    let weather_app = Arc::new(Mutex::new(weather_app));
+    let mutex = Arc::downgrade(&weather_app);
+    let (sender, receiver) = unbounded();
 
+    if let Ok(mut app) = mutex.upgrade().unwrap().try_lock() {
+        app.load(weather_prefs, sender, mutex);
+    } else {
+        panic!("Unable to load weather application");
+    }
+
+    let main_ctx = gtk::glib::MainContext::default();
+    let future = async move {
+        while let Ok(item) = receiver.recv_async().await {
+            match weather_app.try_lock() {
+                Ok(mut app) => {
+                    if app.is_active() {
+                        app.update(item);
+                    } else {
+                        println!("Done, not active");
+                        return;
+                    }
+                },
+                Err(err) => println!("{}", err),
+            }
+        }
+        println!("Done");
+    };
+    main_ctx.spawn_local(future);
     window.show();
 }
 
 fn main() {
-
     let app = Application::new(
         Some("com.github.tiggilyboo.weather"),
         Default::default(),
