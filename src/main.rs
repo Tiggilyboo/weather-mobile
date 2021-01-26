@@ -2,6 +2,7 @@ extern crate gtk;
 extern crate flume;
 extern crate serde;
 extern crate serde_json;
+extern crate time;
 
 mod api;
 mod ui;

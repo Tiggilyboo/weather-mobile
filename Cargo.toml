@@ -20,3 +20,7 @@ git = "https://github.com/gtk-rs/gtk4-rs"
 branch = "master"
 package = "gtk4"
 features = []
+
+[dependencies.time]
+version = "0.2.25"
+features = ["std"]

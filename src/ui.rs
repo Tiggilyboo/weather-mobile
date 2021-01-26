@@ -1,3 +1,6 @@
+mod daily;
+mod alert;
+
 use std::sync::{Mutex, Weak};
 use std::path::{Path, PathBuf};
 use std::env::current_dir;
@@ -10,14 +13,13 @@ use gtk::{
     ActionBar,
     Label,
     EditableLabel,
+    Expander,
     Picture,
     Entry,
     Button,
     ComboBoxText,
     ListStore,
 };
-use gtk::glib::value::*;
-use gtk::glib::{Value, TypedValue};
 use flume::{
     Sender,
 };
@@ -27,9 +29,13 @@ use super::api::{
     location::*,
     units::Units,
 };
+use alert::WeatherAlerts;
 use super::rpc::WeatherUpdate;
 
 pub struct WeatherApplication {
+    active: bool,
+    sender: Option<Sender<WeatherUpdate>>,
+    mutex: Option<Weak<Mutex<Self>>>,
     application: Weak<Application>,
     location: EditableLabel,
     location_search: Entry,
@@ -37,10 +43,10 @@ pub struct WeatherApplication {
     location_results: ComboBoxText,
     temperature: Label,
     feels_like: Label,
+    current_details: Label,
     current_picture: Picture,
-    active: bool,
-    sender: Option<Sender<WeatherUpdate>>,
-    mutex: Option<Weak<Mutex<Self>>>,
+    alerts_container: gtk::Box,
+    alerts: WeatherAlerts,
     preferences: Option<WeatherPreferences>,
 }
 
@@ -68,17 +74,25 @@ impl WeatherApplication {
         let current_picture = Picture::new();
         let cbox = gtk::CenterBox::new();
         let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
-
         hbox.append(&current_picture);
         hbox.append(&temperature);
 
+        let current_details = Label::new(None);
+        let current_details_expander = Expander::new(Some("Current"));
+        current_details_expander.set_child(Some(&current_details));
+
+        let alerts_container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let alerts = WeatherAlerts::new(None);
+        alerts_container.append(&alerts.container);
+
         let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        vbox.append(&alerts_container);
         vbox.append(&hbox);
         vbox.append(&feels_like);
+        vbox.append(&current_details_expander);
         vbox.append(&action_bar);
 
         cbox.set_center_widget(Some(&vbox));
-
         window.set_child(Some(&cbox));
 
         let wa = WeatherApplication {
@@ -90,10 +104,13 @@ impl WeatherApplication {
             location_results,
             feels_like,
             current_picture,
+            current_details,
             active: true,
             sender: None, 
             mutex: None,
             preferences: None,
+            alerts_container,
+            alerts,
         };
     
         wa
@@ -219,7 +236,7 @@ impl WeatherApplication {
                     lat: interest.lat,
                     lon: interest.lon,
                 };
-                let data: WeatherData = get_weather_data(
+                let data = get_weather_data(
                    Units::Metric, 
                    interest.lat, 
                    interest.lon,
@@ -236,7 +253,7 @@ impl WeatherApplication {
 
     pub fn update(&mut self, update: WeatherUpdate) {
         match update {
-            WeatherUpdate::Data(data) => self.update_weather(&data),
+            WeatherUpdate::Data(data) => self.update_weather(data),
             WeatherUpdate::Location(location) => self.update_location(location),
             WeatherUpdate::SearchLocations(query) => self.search_location(query),
             WeatherUpdate::SetLocations(locations) => self.update_location_results(locations),
@@ -249,18 +266,63 @@ impl WeatherApplication {
         self.active
     }
 
-    fn update_weather(&mut self, weather: &WeatherData) {
-        self.temperature.set_markup(&format!("<big>{}</big>", weather.display_temperature(weather.current.temp)));
-        self.feels_like.set_markup(&format!("<big>Feels like: {}</big>", weather.display_temperature(weather.current.feels_like)));
-        
-        let picture_path = Self::current_picture_path(Some(weather));
-        self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
+    fn update_current_weather(&mut self, current: Option<CurrentWeather>, units: Option<&Units>) {
+        if let Some(current) = current {
+            let units = units.unwrap();
+            self.temperature.set_markup(&format!("<big>{}</big>", display_temperature(current.temp, units)));
+            self.feels_like.set_markup(&format!("<big>Feels like: {}</big>", display_temperature(current.feels_like, units)));
+            self.current_details.set_markup(&format!("
+<b>At:</b> {}
+Pressure: {}
+Humidity: {}
+UV Index: {}
+Visibility: {}
+Wind Speed: {}
+Chance of Precipitation: {}
+            ", 
+            current.time("%T"), 
+            current.pressure, 
+            current.humidity,
+            current.uvi,
+            current.visibility.unwrap_or(0),
+            current.wind_speed,
+            current.pop));
+            
+            let picture_path = Self::current_picture_path(Some(&current));
+            self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
+        } else {
+            self.temperature.set_markup("<big>No connection</big>");
+            self.feels_like.set_markup("<big>Feels like: Sadness</big>");
+
+            let picture_path = Self::current_picture_path(None);
+            self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
+            self.current_details.set_text("");
+        };
+    }
+    
+    fn update_alerts(&mut self, weather_alerts: Option<Vec<WeatherAlert>>) {
+        if let Some(weather_alerts) = weather_alerts {
+            self.alerts.populate(weather_alerts);
+        } else {
+            self.alerts.populate(Vec::new());
+        }
     }
 
-    fn current_picture_path(weather: Option<&WeatherData>) -> PathBuf {
+    fn update_weather(&mut self, weather: Option<WeatherData>) {
+        if let Some(weather) = weather {
+            let units = &weather.units.expect("units");
+            self.update_current_weather(Some(weather.current), Some(units));
+            self.update_alerts(Some(weather.alerts));
+        } else {
+            self.update_current_weather(None, None);
+            self.update_alerts(None);
+        };
+    }
+
+    fn current_picture_path(current: Option<&CurrentWeather>) -> PathBuf {
         let pwd = current_dir().unwrap();
-        let path = if weather.is_some() && weather.unwrap().current.status.len() > 0 {
-            let icon = weather.unwrap().current.status[0].icon.to_string();
+        let path = if current.is_some() && current.unwrap().status.len() > 0 {
+            let icon = current.unwrap().status[0].icon.to_string();
             format!("{}/icons/{}.png", pwd.display(), &icon)
         } else {
             format!("{}/icons/unknown.png", pwd.display())
@@ -279,14 +341,11 @@ impl WeatherApplication {
                     app.location.set_visible(false);
                     app.location_search.set_visible(false); 
                     app.location_search_button.set_visible(false);
-                    if let Some(locations) = search_locations(&search_query).await {
-                        let sender = app.get_sender();
-                        if let Err(_) = sender.send_async(WeatherUpdate::SetLocations(locations)).await {
-                            println!("Unable to send WeatherUpdate::SetLocations");
-                        }
-                    } else {
-                        // TODO: some feedback
-                        println!("Unable to retreive results from locations");
+
+                    let sender = app.get_sender();
+                    let locations = search_locations(&search_query).await;
+                    if let Err(_) = sender.send_async(WeatherUpdate::SetLocations(locations)).await {
+                        println!("Unable to send WeatherUpdate::SetLocations");
                     }
                 }, 
                 Err(err) => println!("search_location err: {}", err),
@@ -311,28 +370,34 @@ impl WeatherApplication {
         model
     }
 
-    fn update_location_results(&mut self, location_results: Vec<LocationPoint>) {
-        let results_count = location_results.len();
-        let first_result = if results_count == 1 {
-            Some(location_results[0].clone())
-        } else {
-            None
-        };
-        let list_model = Self::locations_to_store(location_results);
-        self.location_results.set_model(Some(&list_model));
-        self.location_results.set_visible(true);
+    fn update_location_results(&mut self, location_results: Option<Vec<LocationPoint>>) {
+        if let Some(location_results) = location_results {
+            let results_count = location_results.len();
+            let first_result = if results_count == 1 {
+                Some(location_results[0].clone())
+            } else {
+                None
+            };
+            let list_model = Self::locations_to_store(location_results);
+            self.location_results.set_model(Some(&list_model));
+            self.location_results.set_visible(true);
 
-        match results_count {
-            1 => {
-                if let Some(first) = first_result {
-                    // Force change trigger
-                    self.location_results.set_active_id(Some(&first.location));
-                    self.request_weather(first);
-                } 
-            }, 
-            _ => {
-                self.location_results.popup();
-            },
+            match results_count {
+                1 => {
+                    if let Some(first) = first_result {
+                        // Force change trigger
+                        self.location_results.set_active_id(Some(&first.location));
+                        self.request_weather(first);
+                    } 
+                }, 
+                _ => {
+                    self.location_results.popup();
+                },
+            }
+        } else {
+            if let Err(err) = self.get_sender().send(WeatherUpdate::Location(None)) {
+                println!("Unable to send WeatherUpdate::Location(None): {}", err);
+            }
         }
     }
 
