@@ -41,6 +41,7 @@ pub struct WeatherApplication {
     active: bool,
     sender: Option<Sender<WeatherUpdate>>,
     mutex: Option<Weak<Mutex<Self>>>,
+    preferences: Option<WeatherPreferences>,
 }
 
 impl WeatherApplication {
@@ -92,6 +93,7 @@ impl WeatherApplication {
             active: true,
             sender: None, 
             mutex: None,
+            preferences: None,
         };
     
         wa
@@ -147,8 +149,11 @@ impl WeatherApplication {
                         }
                     },
                     "Cancel" => {
-                        app.get_sender().send(WeatherUpdate::Location(None))
-                            .expect("Unable to send WeatherUpdate::Location(None) for Cancel"); 
+                        if let Some(preferences) = &app.preferences {
+                            app.get_sender().send(WeatherUpdate::Location(Some(preferences.location.clone()))).unwrap();
+                        } else {
+                            app.get_sender().send(WeatherUpdate::Location(None)).unwrap();
+                        }
                     }, 
                     _ => panic!(format!("Unhandled location action: {}", button_label))
                 }
@@ -180,11 +185,13 @@ impl WeatherApplication {
                 }
             }
         });
+        // must be set before request_weather
         self.mutex = Some(mutex);
 
-        if let Some(preferences) = preferences {
+        // Load current weather if preferences set
+        if let Some(preferences) = &preferences {
             self.request_weather(LocationPoint {
-                location: preferences.location,
+                location: preferences.location.clone(),
                 lat: preferences.lat,
                 lon: preferences.lon,
             });
@@ -197,6 +204,8 @@ impl WeatherApplication {
                 }
             });
         }
+
+        self.preferences = preferences;
     }
 
     fn request_weather(&self, interest: LocationPoint) {
@@ -205,6 +214,11 @@ impl WeatherApplication {
         self.spawn_local(async move {
             if let Ok(app) = mutex.upgrade().unwrap().try_lock() {
                 let sender = app.get_sender();
+                let new_prefs = WeatherPreferences {
+                    location: interest.location,
+                    lat: interest.lat,
+                    lon: interest.lon,
+                };
                 let data: WeatherData = get_weather_data(
                    Units::Metric, 
                    interest.lat, 
@@ -212,7 +226,10 @@ impl WeatherApplication {
                 ).await;
 
                 sender.send_async(WeatherUpdate::Data(data)).await.unwrap();
-                sender.send_async(WeatherUpdate::Location(Some(interest.location))).await.unwrap();
+                sender.send_async(WeatherUpdate::Location(Some(new_prefs.location.clone()))).await.unwrap();
+                if let Err(err) = sender.send_async(WeatherUpdate::SavePreferences(new_prefs)).await {
+                    println!("Unable to save preferences: {}", err);
+                }
             }
         });
     }
@@ -221,9 +238,10 @@ impl WeatherApplication {
         match update {
             WeatherUpdate::Data(data) => self.update_weather(&data),
             WeatherUpdate::Location(location) => self.update_location(location),
-            WeatherUpdate::Exit => self.handle_quit(),
             WeatherUpdate::SearchLocations(query) => self.search_location(query),
             WeatherUpdate::SetLocations(locations) => self.update_location_results(locations),
+            WeatherUpdate::SavePreferences(preferences) => self.save_preferences(&preferences),
+            WeatherUpdate::Exit => self.handle_quit(),
         }
     }
     
@@ -242,7 +260,6 @@ impl WeatherApplication {
     fn current_picture_path(weather: Option<&WeatherData>) -> PathBuf {
         let pwd = current_dir().unwrap();
         let path = if weather.is_some() && weather.unwrap().current.status.len() > 0 {
-            println!("weather status: {}", weather.unwrap().current.status[0].icon);
             let icon = weather.unwrap().current.status[0].icon.to_string();
             format!("{}/icons/{}.png", pwd.display(), &icon)
         } else {
@@ -264,8 +281,7 @@ impl WeatherApplication {
                     app.location_search_button.set_visible(false);
                     if let Some(locations) = search_locations(&search_query).await {
                         let sender = app.get_sender();
-                        let sent = sender.send_async(WeatherUpdate::SetLocations(locations)).await;
-                        if sent.is_err() {
+                        if let Err(_) = sender.send_async(WeatherUpdate::SetLocations(locations)).await {
                             println!("Unable to send WeatherUpdate::SetLocations");
                         }
                     } else {
@@ -334,6 +350,10 @@ impl WeatherApplication {
             self.location_search_button.set_visible(true);
             self.location_search_button.set_label("Search");
         }
+    }
+
+    fn save_preferences(&self, preferences: &WeatherPreferences) {
+        preferences.save_config();
     }
     
     fn handle_quit(&mut self) {
