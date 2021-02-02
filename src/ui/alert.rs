@@ -17,6 +17,13 @@ pub struct WeatherAlerts {
 fn create_infobar_alert(alert: &WeatherAlert) -> InfoBar {
     let i = InfoBar::new();
     i.set_message_type(MessageType::Warning);
+    i.set_show_close_button(true);
+    i.connect_response(|info, response| {
+        match response {
+            gtk::ResponseType::Close => info.set_revealed(false),
+            _ => {},
+        }
+    });
 
     let when = alert.when();
     let label = Label::new(Some(&format!("<b>{}</b> 

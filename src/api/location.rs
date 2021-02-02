@@ -7,8 +7,8 @@ const GEOCODE_API_VERSION: &str = "v1";
 
 #[derive(Deserialize, Clone)]
 pub struct LocationPoint {
-    pub lat: f32,
-    pub lon: f32,
+    pub lat: f64,
+    pub lon: f64,
     pub location: String,
 }
 
@@ -54,8 +54,8 @@ fn parse_feature_to_location_point(feature: serde_json::Value) -> LocationPoint 
     let location = String::from(properties["label"].as_str().unwrap());
 
     LocationPoint {
-        lat: lat as f32, 
-        lon: lon as f32,
+        lat,
+        lon,
         location,
     }
 }

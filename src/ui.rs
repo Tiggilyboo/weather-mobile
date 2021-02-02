@@ -30,6 +30,7 @@ use super::api::{
     units::Units,
 };
 use alert::WeatherAlerts;
+use daily::DailyView;
 use super::rpc::WeatherUpdate;
 
 pub struct WeatherApplication {
@@ -44,9 +45,10 @@ pub struct WeatherApplication {
     temperature: Label,
     feels_like: Label,
     current_details: Label,
+    current_details_expander: Expander,
     current_picture: Picture,
-    alerts_container: gtk::Box,
     alerts: WeatherAlerts,
+    daily: DailyView,
     preferences: Option<WeatherPreferences>,
 }
 
@@ -72,27 +74,37 @@ impl WeatherApplication {
         action_bar.set_center_widget(Some(&location_box));
 
         let current_picture = Picture::new();
-        let cbox = gtk::CenterBox::new();
         let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
         hbox.append(&current_picture);
         hbox.append(&temperature);
 
+        let chbox = gtk::CenterBox::new();
+        chbox.set_center_widget(Some(&hbox));
+
         let current_details = Label::new(None);
         let current_details_expander = Expander::new(Some("Current"));
         current_details_expander.set_child(Some(&current_details));
+        current_details_expander.set_visible(false);
 
         let alerts_container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         let alerts = WeatherAlerts::new(None);
         alerts_container.append(&alerts.container);
 
+        let daily_container = gtk::Box::new(gtk::Orientation::Vertical, 0);
+        let daily = DailyView::new();
+        daily_container.append(&daily.container);
+
         let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10);
         vbox.append(&alerts_container);
-        vbox.append(&hbox);
+        vbox.append(&chbox);
         vbox.append(&feels_like);
         vbox.append(&current_details_expander);
+        vbox.append(&daily_container);
         vbox.append(&action_bar);
 
+        let cbox = gtk::CenterBox::new();
         cbox.set_center_widget(Some(&vbox));
+
         window.set_child(Some(&cbox));
 
         let wa = WeatherApplication {
@@ -105,12 +117,13 @@ impl WeatherApplication {
             feels_like,
             current_picture,
             current_details,
+            current_details_expander,
+            alerts,
+            daily,
             active: true,
             sender: None, 
             mutex: None,
             preferences: None,
-            alerts_container,
-            alerts,
         };
     
         wa
@@ -184,11 +197,11 @@ impl WeatherApplication {
                     let location = model.get_value(&active_iter, 0).get::<String>()
                         .expect("location from model at col 0 is String")
                         .unwrap();
-                    let lat = model.get_value(&active_iter, 1).get::<f32>()
-                        .expect("lat from model at col 1 is F32")
+                    let lat = model.get_value(&active_iter, 1).get::<f64>()
+                        .expect("lat from model at col 1 is F64")
                         .unwrap();
-                    let lon = model.get_value(&active_iter, 2).get::<f32>()
-                        .expect("lon from model at col 2 is F32")
+                    let lon = model.get_value(&active_iter, 2).get::<f64>()
+                        .expect("lon from model at col 2 is F64")
                         .unwrap();
 
                     let interest = LocationPoint {
@@ -266,6 +279,14 @@ impl WeatherApplication {
         self.active
     }
 
+    fn update_daily_weather(&mut self, daily: Option<Vec<DailyWeather>>) {
+        if let Some(daily) = daily {
+            self.daily.populate(daily);
+        } else {
+            self.daily.populate(Vec::new());
+        }
+    }
+
     fn update_current_weather(&mut self, current: Option<CurrentWeather>, units: Option<&Units>) {
         if let Some(current) = current {
             let units = units.unwrap();
@@ -287,6 +308,7 @@ Chance of Precipitation: {}
             current.visibility.unwrap_or(0),
             current.wind_speed,
             current.pop));
+            self.current_details_expander.set_visible(true);
             
             let picture_path = Self::current_picture_path(Some(&current));
             self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
@@ -296,7 +318,9 @@ Chance of Precipitation: {}
 
             let picture_path = Self::current_picture_path(None);
             self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
+
             self.current_details.set_text("");
+            self.current_details_expander.set_visible(false);
         };
     }
     
@@ -312,9 +336,11 @@ Chance of Precipitation: {}
         if let Some(weather) = weather {
             let units = &weather.units.expect("units");
             self.update_current_weather(Some(weather.current), Some(units));
+            self.update_daily_weather(Some(weather.daily));
             self.update_alerts(Some(weather.alerts));
         } else {
             self.update_current_weather(None, None);
+            self.update_daily_weather(None);
             self.update_alerts(None);
         };
     }
@@ -356,8 +382,8 @@ Chance of Precipitation: {}
     fn locations_to_store(locations: Vec<LocationPoint>) -> ListStore {
         let col_types: [gtk::glib::Type; 3] = [
             gtk::glib::Type::String, 
-            gtk::glib::Type::F32,
-            gtk::glib::Type::F32,
+            gtk::glib::Type::F64,
+            gtk::glib::Type::F64,
         ];
         let model = ListStore::new(&col_types);
         let col_indices: [u32; 3] = [0, 1, 2];

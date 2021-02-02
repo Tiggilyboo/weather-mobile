@@ -1,4 +1,3 @@
-
 use serde::Deserialize;
 use isahc::prelude::*;
 use super::units::Units;
@@ -11,15 +10,15 @@ const OPEN_WEATHER_API_VERSION: &str = "2.5";
 #[derive(Deserialize)]
 pub struct WeatherMinutely {
     dt: i64, 
-    pub precipitation: f32,
+    pub precipitation: f64,
 }
 
 #[derive(Deserialize)]
 pub struct WeatherDayTemps {
-    pub day: f32,
-    pub night: f32,
-    pub eve: f32,
-    pub morn: f32,
+    pub day: f64,
+    pub night: f64,
+    pub eve: f64,
+    pub morn: f64,
 }
 
 #[derive(Deserialize)]
@@ -43,27 +42,27 @@ pub struct WeatherAlert {
 pub struct Weather<T> {
     dt: i64,
     #[serde(default)]
-    sunrise: Option<i64>,
+    pub sunrise: Option<i64>,
     #[serde(default)]
-    sunset: Option<i64>,
+    pub sunset: Option<i64>,
     pub temp: T,
     pub feels_like: T,
     pub pressure: u32,
     pub humidity: u32,
-    pub dew_point: f32,
-    pub uvi: f32,
-    pub clouds: f32,
+    pub dew_point: f64,
+    pub uvi: f64,
+    pub clouds: f64,
     #[serde(default)]
     pub visibility: Option<u32>,
-    pub wind_speed: f32,
+    pub wind_speed: f64,
     pub wind_deg: u32,
     #[serde(rename = "weather")]
     pub status: Vec<WeatherStatus>,
     #[serde(default)]
-    pub pop: f32,
+    pub pop: f64,
 }
 
-pub type CurrentWeather = Weather<f32>;
+pub type CurrentWeather = Weather<f64>;
 pub type DailyWeather = Weather<WeatherDayTemps>;
 
 #[derive(Deserialize)]
@@ -77,7 +76,7 @@ pub struct WeatherData {
    pub units: Option<Units>,
 }
 
-pub fn display_temperature(degrees: f32, units: &Units) -> String {
+pub fn display_temperature(degrees: f64, units: &Units) -> String {
     format!("{} {}", degrees, units.unit_of_measure())
 }
 
@@ -91,6 +90,10 @@ pub fn date_from(dt: i64) -> String {
     let offset = OffsetDateTime::from_unix_timestamp(dt);
     let date = offset.date();
     date.to_string()
+}
+
+pub fn date_time_from(dt: i64, format: &str) -> String {
+    format!("{} {}", date_from(dt), time_from(dt, format))
 }
 
 pub trait TimeStamped {
@@ -122,6 +125,22 @@ impl TimeStamped for WeatherMinutely {
         date_from(self.dt)
     }
 }
+impl DailyWeather {
+    pub fn sunset(&self) -> Option<String> {
+        if let Some(time) = self.sunset {
+            Some(time_from(time, "%T"))
+        } else {
+            None
+        }
+    }
+    pub fn sunrise(&self) -> Option<String> {
+        if let Some(time) = self.sunrise {
+            Some(time_from(time, "%T"))
+        } else {
+            None
+        }
+    }
+}
 
 fn base_url() -> String {
     return format!("{}/{}", 
@@ -129,7 +148,7 @@ fn base_url() -> String {
         OPEN_WEATHER_API_VERSION);
 }
 
-pub async fn get_weather_data(units: Units, lat: f32, lon: f32) -> Option<WeatherData> {
+pub async fn get_weather_data(units: Units, lat: f64, lon: f64) -> Option<WeatherData> {
     let url = format!("{}/onecall?lat={}&lon={}&units={}&appid={}",
        base_url(),
        lat, lon,
@@ -140,7 +159,7 @@ pub async fn get_weather_data(units: Units, lat: f32, lon: f32) -> Option<Weathe
     if let Some(mut body) = response.ok() {
         let text = body.text().await;
         let text = text.unwrap();
-        println!("weather got: {}", text);
+        //println!("weather got: {}", text);
         
         let mut data: WeatherData = serde_json::from_str(&text)
             .expect("Unable to deserialize weather");
