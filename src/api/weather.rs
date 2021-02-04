@@ -1,7 +1,10 @@
 use serde::Deserialize;
 use isahc::prelude::*;
 use super::units::Units;
-use time::OffsetDateTime;
+use time::{
+    OffsetDateTime,
+    UtcOffset,
+};
 
 const OPEN_WEATHER_API_KEY: &str = "ad589466a7b4db65d43f8e6c850f97e5";
 const OPEN_WEATHER_API_URL: &str = "https://api.openweathermap.org/data";
@@ -81,15 +84,27 @@ pub fn display_temperature(degrees: f64, units: &Units) -> String {
 }
 
 pub fn time_from(dt: i64, format: &str) -> String {   
-    let offset = OffsetDateTime::from_unix_timestamp(dt);
-    let time = offset.time();
-    time.format(format)
+    let datetime = datetime_from(dt);
+    datetime.time().format(format)
+}
+
+pub fn current_utc_offset() -> UtcOffset {
+    if let Ok(offset) = UtcOffset::try_current_local_offset() {
+        offset
+    } else {
+        UtcOffset::UTC
+    }
+}
+pub fn datetime_from(dt: i64) -> OffsetDateTime {
+    let datetime = OffsetDateTime::from_unix_timestamp(dt);
+    let utc_offset = current_utc_offset();
+
+    datetime.to_offset(utc_offset)
 }
 
 pub fn date_from(dt: i64) -> String {
-    let offset = OffsetDateTime::from_unix_timestamp(dt);
-    let date = offset.date();
-    date.to_string()
+    let datetime = datetime_from(dt);
+    datetime.date().to_string()
 }
 
 pub fn date_time_from(dt: i64, format: &str) -> String {
@@ -139,6 +154,15 @@ impl DailyWeather {
         } else {
             None
         }
+    }
+    pub fn day_of_week(&self) -> String {
+        let date = datetime_from(self.dt);
+        if let Ok(today) = OffsetDateTime::try_now_local() {
+            if today.date() == date.date() {
+                return String::from("Today")
+            }
+        }
+        date.weekday().to_string()
     }
 }
 

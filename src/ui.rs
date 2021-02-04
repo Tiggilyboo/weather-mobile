@@ -42,6 +42,7 @@ pub struct WeatherApplication {
     location_search: Entry,
     location_search_button: Button,
     location_results: ComboBoxText,
+    refresh_button: Button,
     temperature: Label,
     feels_like: Label,
     current_details: Label,
@@ -50,6 +51,26 @@ pub struct WeatherApplication {
     alerts: WeatherAlerts,
     daily: DailyView,
     preferences: Option<WeatherPreferences>,
+}
+
+pub fn icon_path(icon: Option<String>) -> PathBuf {
+    let pwd = current_dir().unwrap();
+    let path = if let Some(icon) = icon {
+        format!("{}/icons/{}.png", pwd.display(), &icon)
+    } else {
+        format!("{}/icons/unknown.png", pwd.display())
+    };
+    Path::new(&path).to_path_buf()
+}
+
+fn current_picture_path(current: Option<&CurrentWeather>) -> PathBuf {
+    let path = if current.is_some() && current.unwrap().status.len() > 0 {
+        icon_path(Some(current.unwrap().status[0].icon.clone()))
+    } else {
+        icon_path(None)
+    };
+
+    Path::new(&path).to_path_buf()
 }
 
 impl WeatherApplication {
@@ -72,6 +93,10 @@ impl WeatherApplication {
 
         let action_bar = ActionBar::new();
         action_bar.set_center_widget(Some(&location_box));
+        
+        let refresh_button = Button::from_icon_name(Some("view-refresh"));
+        refresh_button.set_visible(false);
+        action_bar.pack_end(&refresh_button);
 
         let current_picture = Picture::new();
         let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
@@ -86,26 +111,21 @@ impl WeatherApplication {
         current_details_expander.set_child(Some(&current_details));
         current_details_expander.set_visible(false);
 
-        let alerts_container = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let alerts_container = gtk::CenterBox::new();
         let alerts = WeatherAlerts::new(None);
-        alerts_container.append(&alerts.container);
+        alerts_container.set_center_widget(Some(&alerts.container));
 
-        let daily_container = gtk::Box::new(gtk::Orientation::Vertical, 0);
         let daily = DailyView::new();
-        daily_container.append(&daily.container);
 
         let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        vbox.append(&action_bar);
         vbox.append(&alerts_container);
         vbox.append(&chbox);
         vbox.append(&feels_like);
         vbox.append(&current_details_expander);
-        vbox.append(&daily_container);
-        vbox.append(&action_bar);
+        vbox.append(&daily.container);
 
-        let cbox = gtk::CenterBox::new();
-        cbox.set_center_widget(Some(&vbox));
-
-        window.set_child(Some(&cbox));
+        window.set_child(Some(&vbox));
 
         let wa = WeatherApplication {
             application,
@@ -114,6 +134,7 @@ impl WeatherApplication {
             location_search,
             location_search_button,
             location_results,
+            refresh_button,
             feels_like,
             current_picture,
             current_details,
@@ -215,6 +236,14 @@ impl WeatherApplication {
                 }
             }
         });
+
+        let mutex_refresh = mutex.clone();
+        self.refresh_button.connect_clicked(move |_| {
+            if let Ok(app) = mutex_refresh.upgrade().unwrap().try_lock() {
+                app.refresh_weather();
+            }
+        });
+
         // must be set before request_weather
         self.mutex = Some(mutex);
 
@@ -227,23 +256,33 @@ impl WeatherApplication {
             });
         } else {
             // No preferences set! Set ui state as no-location
-            let sender = self.get_sender();
-            self.spawn_local(async move {
-                if let Err(err) = sender.send_async(WeatherUpdate::Location(None)).await {
-                    println!("Unable to request weather: {}", err);
+            if let Ok(app) = self.get_mutex().clone().upgrade().unwrap().try_lock() {
+                if let Err(_) = app.get_sender().send(WeatherUpdate::Location(None)) {
+                    println!("Unable to reset location when preferences were not set");
                 }
-            });
+            }
         }
 
         self.preferences = preferences;
     }
 
+    fn refresh_weather(&self) {
+        if let Some(prefs) = &self.preferences {
+            self.request_weather(LocationPoint {
+                location: prefs.location.clone(),
+                lat: prefs.lat,
+                lon: prefs.lon,
+            });
+        }
+    }
+
     fn request_weather(&self, interest: LocationPoint) {
-        let mutex = self.get_mutex();
+        let mutex = self.get_mutex().clone();
 
         self.spawn_local(async move {
             if let Ok(app) = mutex.upgrade().unwrap().try_lock() {
                 let sender = app.get_sender();
+
                 let new_prefs = WeatherPreferences {
                     location: interest.location,
                     lat: interest.lat,
@@ -293,13 +332,13 @@ impl WeatherApplication {
             self.temperature.set_markup(&format!("<big>{}</big>", display_temperature(current.temp, units)));
             self.feels_like.set_markup(&format!("<big>Feels like: {}</big>", display_temperature(current.feels_like, units)));
             self.current_details.set_markup(&format!("
-<b>At:</b> {}
+<b>At</b> {}
 Pressure: {}
 Humidity: {}
 UV Index: {}
 Visibility: {}
 Wind Speed: {}
-Chance of Precipitation: {}
+Precipitation: {}%
             ", 
             current.time("%T"), 
             current.pressure, 
@@ -307,16 +346,16 @@ Chance of Precipitation: {}
             current.uvi,
             current.visibility.unwrap_or(0),
             current.wind_speed,
-            current.pop));
+            current.pop * 100.00));
             self.current_details_expander.set_visible(true);
             
-            let picture_path = Self::current_picture_path(Some(&current));
+            let picture_path = current_picture_path(Some(&current));
             self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
         } else {
             self.temperature.set_markup("<big>No connection</big>");
             self.feels_like.set_markup("<big>Feels like: Sadness</big>");
 
-            let picture_path = Self::current_picture_path(None);
+            let picture_path = current_picture_path(None);
             self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
 
             self.current_details.set_text("");
@@ -343,18 +382,6 @@ Chance of Precipitation: {}
             self.update_daily_weather(None);
             self.update_alerts(None);
         };
-    }
-
-    fn current_picture_path(current: Option<&CurrentWeather>) -> PathBuf {
-        let pwd = current_dir().unwrap();
-        let path = if current.is_some() && current.unwrap().status.len() > 0 {
-            let icon = current.unwrap().status[0].icon.to_string();
-            format!("{}/icons/{}.png", pwd.display(), &icon)
-        } else {
-            format!("{}/icons/unknown.png", pwd.display())
-        };
-
-        Path::new(&path).to_path_buf()
     }
 
     fn search_location(&self, search_query: String) {
@@ -434,12 +461,14 @@ Chance of Precipitation: {}
             self.location_search.set_visible(false);
             self.location_results.set_visible(false);
             self.location_search_button.set_visible(false);
+            self.refresh_button.set_visible(true);
         } else {
             self.location.set_visible(false);
             self.location_search.set_visible(true);    
             self.location_search.set_text("");
             self.location_search_button.set_visible(true);
             self.location_search_button.set_label("Search");
+            self.refresh_button.set_visible(false);
         }
     }
 

@@ -1,112 +1,124 @@
 use gtk::prelude::*;
 use gtk::{
+    Expander,
     Image,
     Label,
-    ListView,
 };
-use gtk::gio::prelude::*;
-use gtk::glib::prelude::*;
-use gtk::gio::{ListModel,ListStore};
-use gtk::glib::{Type, VariantDict, Object};
 use crate::api::weather::{
     DailyWeather,
     TimeStamped,
 };
+use super::icon_path;
 
-const DAILY_WEATHER_COL_COUNT: usize = 20;
+pub struct DayView {
+    container: gtk::Box,
+}
 
-fn daily_weather_to_store(data: Vec<DailyWeather>) -> ListStore {
-    let store = ListStore::new(gtk::glib::types::Type::Object);
-    for d in data.iter() {
-        let values: [(&str, &dyn ToValue); DAILY_WEATHER_COL_COUNT] = [
-            ("date", &d.date()),
-            ("sunrise", &d.sunrise().unwrap()),
-            ("sunset", &d.sunset().unwrap()),
-            ("day" , &d.temp.day),
-            ("night" , &d.temp.night),
-            ("eve" , &d.temp.eve),
-            ("morn" , &d.temp.morn),
-            ("day" , &d.feels_like.day),
-            ("night" , &d.feels_like.night),
-            ("eve", &d.feels_like.eve),
-            ("morn" , &d.feels_like.morn),
-            ("pressure", &d.pressure),
-            ("humidity", &d.humidity),
-            ("dew_point", &d.dew_point),
-            ("uvi", &d.uvi),
-            ("clouds", &d.clouds),
-            ("wind_speed", &d.wind_speed),
-            ("wind_deg" , &d.wind_deg),
-            ("icon", &d.status[0].icon),
-            ("pop", &d.pop),
-        ];
+impl DayView {
+    pub fn from_daily_weather(data: &DailyWeather) -> Self {
+        let container = gtk::Box::new(gtk::Orientation::Vertical, 5);
 
-        if let Ok(obj) = Object::with_type(Type::Object, &values) {
-            store.append(&obj);
+        let icon_path = if data.status.len() > 0 {
+            icon_path(Some(data.status[0].icon.clone()))
+        } else {
+            icon_path(None)
+        };
+
+        let date = Label::new(None);
+        date.set_markup(&format!("<b>{}</b>\n<small>{}</small>", &data.day_of_week(), &data.date()));
+        container.append(&date);
+
+        let status = Image::from_file(icon_path);
+        status.set_icon_size(gtk::IconSize::Large);
+        container.append(&status);
+
+        let temp = Label::new(None);
+        temp.set_markup(
+            &format!("<b>{}</b>", data.temp.day));
+        let feels_like = Label::new(None);
+        feels_like.set_markup(
+            &format!("<small>Feels like:</small> {}", data.feels_like.day));
+        container.append(&temp);
+        container.append(&feels_like);
+
+        let pop = Label::new(Some(&format!("Precipitation: {}%", data.pop * 100.00)));
+        container.append(&pop);
+
+        let mut details = String::new();
+        details += &format!(
+"<b>Temperatures</b>
+  Night: {} ({})
+  Evening: {} ({})
+  Morning: {} ({})
+",
+            data.temp.night, data.feels_like.night,
+            data.temp.eve, data.feels_like.eve,
+            data.temp.morn, data.feels_like.morn,
+        );
+        
+        details += &format!(
+"<b>Wind</b>
+  Speed: {}
+  Direction (deg): {}
+", data.wind_speed, data.wind_deg);
+
+        let mut sun_info = String::new();
+        if let Some(sunset) = data.sunset() {
+            sun_info += &format!("<b>Sunset:</b> {}\n", sunset);
+        }
+        if let Some(sunrise) = data.sunrise() {
+            sun_info += &format!("<b>Sunrise:</b> {}", sunrise); 
+        }
+        details += &sun_info;
+
+        let details_label = Label::new(None);
+        details_label.set_markup(&details);
+        container.append(&details_label);
+
+        Self {
+            container, 
         }
     }
-
-    store
-}
-
-fn setup_daily_list_item(_: &gtk::SignalListItemFactory, list_item: &gtk::ListItem) {
-    let container = gtk::Box::new(gtk::Orientation::Horizontal, 5);
-    let image = gtk::Image::new();
-    image.set_icon_size(gtk::IconSize::Large);
-    let label = Label::new(Some("Test!"));
-
-    container.append(&image);
-    container.append(&label);
-    list_item.set_child(Some(&container));
-
-    println!("LIST ITEM!");
-}
-
-fn bind_daily_list_item(_: &gtk::SignalListItemFactory, list_item: &gtk::ListItem) {
-    let container = list_item.get_child().unwrap();
-    let image = container.get_first_child().unwrap()
-        .downcast::<Image>().unwrap();
-    let label = container
-        .get_next_sibling().unwrap()
-        .downcast::<Label>().unwrap();
-    let item = list_item.get_item().unwrap();
-
-    label.set_label("Testing!");
-
-    println!("BIND: {:?}", item);
-}
-
-fn build_daily_list(data: Vec<DailyWeather>) -> gtk::ListView {
-    let factory = gtk::SignalListItemFactory::new();
-    factory.connect_setup(setup_daily_list_item);
-    factory.connect_bind(bind_daily_list_item);
-
-    let model = daily_weather_to_store(data);
-    let selection = gtk::SingleSelection::new(Some(&model));
-    let list = ListView::new(Some(&selection), Some(&factory));
-                                        
-    list
 }
 
 pub struct DailyView {
-    pub container: gtk::Box,
-    pub list: Option<ListView>,
+    pub container: gtk::ScrolledWindow,
+    pub views: Vec<DayView>,
+    contents: gtk::Box,
 }
 
 impl DailyView {
     pub fn new() -> Self {
+        let contents = gtk::Box::new(gtk::Orientation::Horizontal, 20);
+
+        let expander = Expander::new(Some("Week"));
+        expander.set_child(Some(&contents));
+        expander.set_expanded(true);
+
+        let container = gtk::ScrolledWindow::new();
+        container.set_child(Some(&expander));
+        container.set_propagate_natural_height(true);
+        container.set_kinetic_scrolling(true);
+        
         Self {
-            container: gtk::Box::new(gtk::Orientation::Horizontal, 10),
-            list: None,
+            container,
+            contents,
+            views: Vec::new(),
         }
     }
 
     pub fn populate(&mut self, daily_data: Vec<DailyWeather>) {
-        if let Some(list) = &self.list {
-            self.container.remove(list);
+        for view in self.views.iter() {
+            self.contents.remove(&view.container);
         }
-        let daily_list = build_daily_list(daily_data);
-        self.container.append(&daily_list);
-        self.list = Some(daily_list);
+        self.views.clear();
+
+        for data in daily_data.iter() {
+            let view = DayView::from_daily_weather(data);
+            self.contents.append(&view.container);
+            self.views.push(view);
+        }
+
+        self.container.set_visible(daily_data.len() > 0);
     }
 }
