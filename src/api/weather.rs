@@ -79,10 +79,6 @@ pub struct WeatherData {
    pub units: Option<Units>,
 }
 
-pub fn display_temperature(degrees: f64, units: &Units) -> String {
-    format!("{} {}", degrees, units.unit_of_measure())
-}
-
 pub fn time_from(dt: i64, format: &str) -> String {   
     let datetime = datetime_from(dt);
     datetime.time().format(format)
@@ -156,13 +152,17 @@ impl DailyWeather {
         }
     }
     pub fn day_of_week(&self) -> String {
-        let date = datetime_from(self.dt);
-        if let Ok(today) = OffsetDateTime::try_now_local() {
-            if today.date() == date.date() {
-                return String::from("Today")
-            }
+        let date_time = datetime_from(self.dt);
+        let today = OffsetDateTime::now_local();
+        let today_date = today.date();
+        let date = date_time.date();
+        if today_date.year() == date.year()
+        && today_date.month() == date.month()
+        && today_date.day() == date.day() {
+            String::from("Today")
+        } else {
+            date_time.weekday().to_string()
         }
-        date.weekday().to_string()
     }
 }
 
@@ -185,11 +185,15 @@ pub async fn get_weather_data(units: Units, lat: f64, lon: f64) -> Option<Weathe
         let text = text.unwrap();
         //println!("weather got: {}", text);
         
-        let mut data: WeatherData = serde_json::from_str(&text)
-            .expect("Unable to deserialize weather");
+        let data: Option<WeatherData> = serde_json::from_str(&text)
+            .unwrap_or(None);
 
-        data.units = Some(units);
-        Some(data)
+        if let Some(mut data) = data {
+            data.units = Some(units);
+            Some(data)
+        } else {
+            None
+        }
     } else {
         None
     }

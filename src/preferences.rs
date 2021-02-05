@@ -5,12 +5,14 @@ use serde::{
     Serialize,
     Deserialize,
 };
+use super::api::units::Units;
 
 #[derive(Serialize, Deserialize)]
 pub struct WeatherPreferences {
     pub location: String,
     pub lat: f64,
     pub lon: f64,
+    pub units: Units,
 }
 
 const WEATHER_CONFIG_FILE: &str = "weather.json";
@@ -43,11 +45,12 @@ impl WeatherPreferences {
         }
     }
 
-    pub fn new(lat: f64, lon: f64, location: String) -> WeatherPreferences {
+    pub fn new(lat: f64, lon: f64, location: String, units: Units) -> WeatherPreferences {
         Self {
             lat,
             lon,
             location,
+            units,
         }
     }
 

@@ -15,8 +15,10 @@ use gtk::{
     EditableLabel,
     Expander,
     Picture,
+    Image,
     Entry,
     Button,
+    Switch,
     ComboBoxText,
     ListStore,
 };
@@ -37,7 +39,6 @@ pub struct WeatherApplication {
     active: bool,
     sender: Option<Sender<WeatherUpdate>>,
     mutex: Option<Weak<Mutex<Self>>>,
-    application: Weak<Application>,
     location: EditableLabel,
     location_search: Entry,
     location_search_button: Button,
@@ -78,14 +79,19 @@ impl WeatherApplication {
         let temperature = Label::new(None);
         let feels_like = Label::new(None);
         let location = EditableLabel::new("");
+        location.set_visible(false);
+
+        let location_image = Image::from_icon_name(Some("network-workgroup-symbolic"));
+
         let location_search = Entry::new();
-        let location_search_button = Button::with_label("Search");
+        let location_search_button = Button::from_icon_name(Some("edit-find"));
         let location_results = ComboBoxText::new();
         location_results.set_visible(false);
         location_results.set_id_column(0);
 
-        let location_box = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let location_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
         location_search.set_placeholder_text(Some("Search your location..."));
+        location_box.append(&location_image);
         location_box.append(&location);
         location_box.append(&location_search);
         location_box.append(&location_results);
@@ -116,6 +122,7 @@ impl WeatherApplication {
         alerts_container.set_center_widget(Some(&alerts.container));
 
         let daily = DailyView::new();
+        daily.set_visible(false);
 
         let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10);
         vbox.append(&action_bar);
@@ -128,7 +135,6 @@ impl WeatherApplication {
         window.set_child(Some(&vbox));
 
         let wa = WeatherApplication {
-            application,
             temperature,
             location,
             location_search,
@@ -183,30 +189,17 @@ impl WeatherApplication {
         });
         
         let mutex_location_search = mutex.clone();
-        self.location_search_button.connect_clicked(move |button| { 
+        self.location_search_button.connect_clicked(move |_| { 
             if let Ok(app) = mutex_location_search.upgrade().unwrap().try_lock() {
-                let button_label = button.get_label().unwrap().clone();
-                match button_label.as_str() {
-                    "Search" => {
-                        if let Some(search_query) = app.location_search.get_text() {
-                            if search_query.len() == 0 {
-                                return;
-                            }
-                            let search_query: &str = &search_query;
-                            app.get_sender().send(WeatherUpdate::SearchLocations(search_query.to_string()))
-                                .expect("Unable to send WeatherUpdate::Location(None) for Search");
-                        } else {
-                            println!("Unable to lock mutex_location");
-                        }
-                    },
-                    "Cancel" => {
-                        if let Some(preferences) = &app.preferences {
-                            app.get_sender().send(WeatherUpdate::Location(Some(preferences.location.clone()))).unwrap();
-                        } else {
-                            app.get_sender().send(WeatherUpdate::Location(None)).unwrap();
-                        }
-                    }, 
-                    _ => panic!(format!("Unhandled location action: {}", button_label))
+                if let Some(search_query) = app.location_search.get_text() {
+                    if search_query.len() == 0 {
+                        return;
+                    }
+                    let search_query: &str = &search_query;
+                    app.get_sender().send(WeatherUpdate::SearchLocations(search_query.to_string()))
+                        .expect("Unable to send WeatherUpdate::SearchLocations(None) for Search");
+                } else {
+                    println!("Unable to lock mutex_location");
                 }
             }
         });
@@ -287,9 +280,10 @@ impl WeatherApplication {
                     location: interest.location,
                     lat: interest.lat,
                     lon: interest.lon,
+                    units: app.get_units(),
                 };
                 let data = get_weather_data(
-                   Units::Metric, 
+                   app.get_units(),
                    interest.lat, 
                    interest.lon,
                 ).await;
@@ -310,7 +304,6 @@ impl WeatherApplication {
             WeatherUpdate::SearchLocations(query) => self.search_location(query),
             WeatherUpdate::SetLocations(locations) => self.update_location_results(locations),
             WeatherUpdate::SavePreferences(preferences) => self.save_preferences(&preferences),
-            WeatherUpdate::Exit => self.handle_quit(),
         }
     }
     
@@ -320,17 +313,24 @@ impl WeatherApplication {
 
     fn update_daily_weather(&mut self, daily: Option<Vec<DailyWeather>>) {
         if let Some(daily) = daily {
-            self.daily.populate(daily);
+            self.daily.populate(daily, &self.get_units());
+            self.daily.set_visible(true);
         } else {
-            self.daily.populate(Vec::new());
+            self.daily.populate(Vec::new(), &self.get_units());
+            self.daily.set_visible(false);
         }
     }
 
-    fn update_current_weather(&mut self, current: Option<CurrentWeather>, units: Option<&Units>) {
+    fn update_current_image(&mut self, current: Option<CurrentWeather>) {
+        let picture_path = current_picture_path(current.as_ref());
+        self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
+    }
+
+    fn update_current_weather(&mut self, current: Option<CurrentWeather>) {
         if let Some(current) = current {
-            let units = units.unwrap();
-            self.temperature.set_markup(&format!("<big>{}</big>", display_temperature(current.temp, units)));
-            self.feels_like.set_markup(&format!("<big>Feels like: {}</big>", display_temperature(current.feels_like, units)));
+            let units = self.get_units();
+            self.temperature.set_markup(&format!("<big>{}</big>", units.temperature_value(current.temp)));
+            self.feels_like.set_markup(&format!("<big>Feels like: {}</big>", units.temperature_value(current.feels_like)));
             self.current_details.set_markup(&format!("
 <b>At</b> {}
 Pressure: {}
@@ -345,22 +345,19 @@ Precipitation: {}%
             current.humidity,
             current.uvi,
             current.visibility.unwrap_or(0),
-            current.wind_speed,
+            units.speed_value(current.wind_speed),
             current.pop * 100.00));
             self.current_details_expander.set_visible(true);
+            self.update_current_image(Some(current));
             
-            let picture_path = current_picture_path(Some(&current));
-            self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
         } else {
-            self.temperature.set_markup("<big>No connection</big>");
-            self.feels_like.set_markup("<big>Feels like: Sadness</big>");
+            self.temperature.set_markup("<big>Invalid Data</big>");
+            self.feels_like.set_markup("Please try another city name!");
 
-            let picture_path = current_picture_path(None);
-            self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
-
-            self.current_details.set_text("");
             self.current_details_expander.set_visible(false);
+            self.update_current_image(None);
         };
+        
     }
     
     fn update_alerts(&mut self, weather_alerts: Option<Vec<WeatherAlert>>) {
@@ -373,12 +370,13 @@ Precipitation: {}%
 
     fn update_weather(&mut self, weather: Option<WeatherData>) {
         if let Some(weather) = weather {
-            let units = &weather.units.expect("units");
-            self.update_current_weather(Some(weather.current), Some(units));
+            let units = weather.units.expect("units");
+            self.update_units(units);
+            self.update_current_weather(Some(weather.current));
             self.update_daily_weather(Some(weather.daily));
             self.update_alerts(Some(weather.alerts));
         } else {
-            self.update_current_weather(None, None);
+            self.update_current_weather(None);
             self.update_daily_weather(None);
             self.update_alerts(None);
         };
@@ -386,6 +384,10 @@ Precipitation: {}%
 
     fn search_location(&self, search_query: String) {
         let search_query = search_query.clone();
+        if search_query.len() == 0 {
+            return;
+        }
+        
         let mutex = self.get_mutex();
 
         self.spawn_local(async move {
@@ -456,30 +458,44 @@ Precipitation: {}%
 
     fn update_location(&mut self, location: Option<String>) {
         if let Some(location) = location {
-            self.location.set_text(&location);
             self.location.set_visible(true);
             self.location_search.set_visible(false);
             self.location_results.set_visible(false);
             self.location_search_button.set_visible(false);
             self.refresh_button.set_visible(true);
+            self.daily.set_visible(true);
+            self.location.set_text(&location);
         } else {
+            self.location.set_text("");
             self.location.set_visible(false);
             self.location_search.set_visible(true);    
-            self.location_search.set_text("");
             self.location_search_button.set_visible(true);
-            self.location_search_button.set_label("Search");
             self.refresh_button.set_visible(false);
+            self.daily.set_visible(false);
+            self.location_search.set_text("");
+            self.update_current_weather(None);
+            self.update_daily_weather(None);
         }
     }
 
     fn save_preferences(&self, preferences: &WeatherPreferences) {
         preferences.save_config();
     }
-    
-    fn handle_quit(&mut self) {
-        self.active = false;
-        if let Some(app) = self.application.upgrade() {
-            app.quit();
+
+    fn update_units(&mut self, units: Units) {
+        if let Some(prefs) = &mut self.preferences {
+            prefs.units = units;
+        }
+    }
+
+    fn get_units(&self) -> Units {
+        if let Some(prefs) = &self.preferences {
+            match prefs.units {
+                Units::Metric => Units::Metric,
+                Units::Imperial => Units::Imperial,
+            }
+        } else {
+            Units::Metric
         }
     }
 }

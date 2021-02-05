@@ -10,5 +10,4 @@ pub enum WeatherUpdate {
     SearchLocations(String),
     SetLocations(Option<Vec<LocationPoint>>),
     SavePreferences(WeatherPreferences),
-    Exit,
 }
