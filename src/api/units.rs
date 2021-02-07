@@ -18,6 +18,12 @@ impl std::fmt::Display for Units {
     }
 }
 
+impl PartialEq for Units {
+    fn eq(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
 impl Units {
     pub fn temperature_unit(&self) -> &str {
         match *self {
@@ -28,7 +34,13 @@ impl Units {
     pub fn speed_unit(&self) -> &str {
         match *self {
             Units::Imperial => "mph",
-            Units::Metric => "km/h",
+            Units::Metric => "m/s",
+        }
+    }
+    pub fn volume_unit(&self) -> &str {
+        match *self {
+            Units::Imperial => "mm",
+            Units::Metric => "mm",
         }
     }
     pub fn temperature_value<T: std::fmt::Display>(&self, value: T) -> String {
@@ -36,5 +48,8 @@ impl Units {
     }
     pub fn speed_value<T: std::fmt::Display>(&self, value: T) -> String {
         format!("{} {}", value, self.speed_unit())
+    }
+    pub fn volume_value<T: std::fmt::Display>(&self, value: T) -> String {
+        format!("{} {}", value, self.volume_unit())
     }
 }

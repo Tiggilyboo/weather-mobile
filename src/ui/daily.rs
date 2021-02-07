@@ -1,12 +1,16 @@
 use gtk::prelude::*;
 use gtk::{
-    Expander,
     Image,
     Label,
 };
 use crate::api::weather::DailyWeather;
 use crate::api::units::Units;
 use super::icon_path;
+use crate::ui::hourly::{
+    build_precipitation_component,
+    RAIN_ICON,
+    SNOW_ICON,
+};
 
 pub struct DayView {
     container: gtk::Box,
@@ -39,9 +43,24 @@ impl DayView {
         container.append(&temp);
         container.append(&feels_like);
 
-        let pop = Label::new(Some(&format!("Precipitation: {}%", data.pop * 100.00)));
-        container.append(&pop);
+        if data.pop > 0.00 {
+            let precipitation = gtk::Box::new(gtk::Orientation::Horizontal, 5);
 
+            let pop = Label::new(Some(&format!("{:.0}% chance", data.pop * 100.00)));
+            precipitation.append(&pop);
+
+            if let Some(rain) = build_precipitation_component(RAIN_ICON, data.rain, units) {
+                precipitation.append(&rain);
+            }
+            if let Some(snow) = build_precipitation_component(SNOW_ICON, data.snow, units) {
+                precipitation.append(&snow);
+            }
+            if data.snow.is_none() && data.rain.is_none() {
+                precipitation.append(&Label::new(Some("of precipitation")));
+            }
+            container.append(&precipitation);
+        }
+        
         let mut details = String::new();
         details += &format!(
 "<b>Temperatures</b>
@@ -56,7 +75,7 @@ impl DayView {
         );
         
         details += &format!(
-"<b>Wind:</b> {} {}
+"<b>Wind:</b> {} at {}º
 ", units.speed_value(data.wind_speed), data.wind_deg);
 
         let details_label = Label::new(None);
@@ -71,7 +90,6 @@ impl DayView {
             sun_box.append(&sunrise);
         }
         if let Some(sunset) = data.sunset() {
-            let sunset_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
             let sunset_img = Image::from_icon_name(Some("daytime-sunset-symbolic"));
             let sunset = Label::new(Some(&sunset));
             sun_box.append(&sunset_img);
@@ -86,7 +104,7 @@ impl DayView {
 }
 
 pub struct DailyView {
-    pub container: gtk::Expander,
+    pub container: gtk::ScrolledWindow,
     pub views: Vec<DayView>,
     contents: gtk::Box,
 }
@@ -100,12 +118,8 @@ impl DailyView {
         scroller.set_propagate_natural_height(true);
         scroller.set_kinetic_scrolling(true);
         
-        let container = Expander::new(Some("Week"));
-        container.set_child(Some(&scroller));
-        container.set_expanded(true);
-
         Self {
-            container,
+            container: scroller,
             contents,
             views: Vec::new(),
         }

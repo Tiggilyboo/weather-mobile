@@ -21,24 +21,6 @@ pub async fn search_locations(search: &str) -> Option<Vec<LocationPoint>> {
     }
 }
 
-pub async fn search_locations_exact(search: &str) -> Option<LocationPoint> {
-    if let Some(data) = get_location_data(search).await {
-        let features = data["features"].as_array()
-            .expect("Location data did not contain features");
-        let exact_match = features.iter()
-            .find(|f| f["properties"]["match_type"] == "exact");
-
-        if let Some(location) = exact_match {
-            Some(parse_feature_to_location_point(location.clone()))
-        } else {
-            None
-        }
-            
-    } else {
-        None
-    }
-}
-
 fn base_url() -> String {
     return format!("{}/{}", 
         GEOCODE_API_URL, 

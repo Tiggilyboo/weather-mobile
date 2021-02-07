@@ -18,7 +18,7 @@ use ui::{
 use flume::{
     unbounded,
 };
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex};
 
 use gtk::ApplicationWindow;
 use gtk::Application;
@@ -28,12 +28,9 @@ fn initialise_ui(app: &gtk::Application) {
     let window = ApplicationWindow::new(app);
     window.set_title(Some("Weather"));
     window.set_show_menubar(false);
+    window.set_icon_name(Some("weather-few-clouds"));
 
-    let app = unsafe {
-        Weak::from_raw(app)
-    };
-
-    let weather_app = WeatherApplication::new(app, &window);
+    let weather_app = WeatherApplication::new(&window);
     let weather_prefs = WeatherPreferences::from_config();
     let weather_app = Arc::new(Mutex::new(weather_app));
     let mutex = Arc::downgrade(&weather_app);

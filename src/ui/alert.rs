@@ -1,4 +1,3 @@
-
 use crate::api::weather::{
     WeatherAlert,
 };
@@ -10,20 +9,14 @@ use gtk::{
 };
 
 pub struct WeatherAlerts {
-    pub container: gtk::Box,
+    pub container: gtk::ScrolledWindow,
+    pub contents: gtk::Box,
     pub alerts: Vec<gtk::InfoBar>,
 }
 
 fn create_infobar_alert(alert: &WeatherAlert) -> InfoBar {
     let i = InfoBar::new();
     i.set_message_type(MessageType::Warning);
-    i.set_show_close_button(true);
-    i.connect_response(|info, response| {
-        match response {
-            gtk::ResponseType::Close => info.set_revealed(false),
-            _ => {},
-        }
-    });
 
     let when = alert.when();
     let label = Label::new(Some(&format!("<b>{}</b> 
@@ -49,10 +42,15 @@ fn create_infobar_alert(alert: &WeatherAlert) -> InfoBar {
 impl WeatherAlerts {
     pub fn new(data: Option<Vec<WeatherAlert>>) -> Self {
         let alerts: Vec<InfoBar> = Vec::new();
-        let container = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        let contents = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        let container = gtk::ScrolledWindow::new();
+        container.set_child(Some(&contents));
+        container.set_propagate_natural_width(true);
+        container.set_kinetic_scrolling(true);
 
         let mut wa = WeatherAlerts {
             container,
+            contents,
             alerts,
         };
         if let Some(data) = data {
@@ -64,14 +62,14 @@ impl WeatherAlerts {
 
     pub fn populate(&mut self, data: Vec<WeatherAlert>) {
         for alert in self.alerts.iter() {
-            self.container.remove(alert);
+            self.contents.remove(alert);
         }
-        self.alerts = data.iter()
-            .map(|a| create_infobar_alert(a))
-            .collect::<Vec<_>>();
-
+        self.alerts.clear();
+        for alert_data in data.iter() {
+            self.alerts.push(create_infobar_alert(alert_data));
+        }
         for alert in self.alerts.iter() {
-            self.container.append(alert);
+            self.contents.append(alert);
         }
     }
 }

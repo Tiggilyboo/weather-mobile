@@ -42,7 +42,7 @@ pub struct WeatherAlert {
 }
 
 #[derive(Deserialize)]
-pub struct Weather<T> {
+pub struct Weather<T, P> {
     dt: i64,
     #[serde(default)]
     pub sunrise: Option<i64>,
@@ -59,19 +59,33 @@ pub struct Weather<T> {
     pub visibility: Option<u32>,
     pub wind_speed: f64,
     pub wind_deg: u32,
+    #[serde(default)]
+    pub wind_gust: Option<f64>,
     #[serde(rename = "weather")]
     pub status: Vec<WeatherStatus>,
     #[serde(default)]
     pub pop: f64,
+    #[serde(default)]
+    pub rain: Option<P>,
+    #[serde(default)]
+    pub snow: Option<P>,
 }
 
-pub type CurrentWeather = Weather<f64>;
-pub type DailyWeather = Weather<WeatherDayTemps>;
+#[derive(Deserialize, Default)]
+pub struct PrecipitationHourly {
+    #[serde(default)]
+    #[serde(rename = "1h")]
+    pub volume: Option<f64>,
+}
+
+pub type CurrentWeather = Weather<f64, PrecipitationHourly>;
+pub type HourlyWeather = Weather<f64, PrecipitationHourly>;
+pub type DailyWeather = Weather<WeatherDayTemps, f64>;
 
 #[derive(Deserialize)]
 pub struct WeatherData {
    pub current: CurrentWeather,
-   pub hourly: Vec<CurrentWeather>,
+   pub hourly: Vec<HourlyWeather>,
    pub minutely: Vec<WeatherMinutely>,
    pub daily: Vec<DailyWeather>,
     #[serde(default)]
@@ -101,10 +115,6 @@ pub fn datetime_from(dt: i64) -> OffsetDateTime {
 pub fn date_from(dt: i64) -> String {
     let datetime = datetime_from(dt);
     datetime.date().to_string()
-}
-
-pub fn date_time_from(dt: i64, format: &str) -> String {
-    format!("{} {}", date_from(dt), time_from(dt, format))
 }
 
 pub trait TimeStamped {
@@ -186,7 +196,8 @@ pub async fn get_weather_data(units: Units, lat: f64, lon: f64) -> Option<Weathe
         //println!("weather got: {}", text);
         
         let data: Option<WeatherData> = serde_json::from_str(&text)
-            .unwrap_or(None);
+            .unwrap();
+            //.unwrap_or(None);
 
         if let Some(mut data) = data {
             data.units = Some(units);

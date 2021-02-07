@@ -1,5 +1,6 @@
 mod daily;
 mod alert;
+mod hourly;
 
 use std::sync::{Mutex, Weak};
 use std::path::{Path, PathBuf};
@@ -8,19 +9,21 @@ use core::future::Future;
 
 use gtk::prelude::*;
 use gtk::{
-    Application,
     ApplicationWindow,
     ActionBar,
     Label,
     EditableLabel,
-    Expander,
     Picture,
+    Popover,
     Image,
     Entry,
     Button,
     Switch,
+    Stack,
+    StackSwitcher,
     ComboBoxText,
     ListStore,
+    MenuButton,
 };
 use flume::{
     Sender,
@@ -33,12 +36,14 @@ use super::api::{
 };
 use alert::WeatherAlerts;
 use daily::DailyView;
+use hourly::HourlyView;
 use super::rpc::WeatherUpdate;
 
 pub struct WeatherApplication {
     active: bool,
     sender: Option<Sender<WeatherUpdate>>,
     mutex: Option<Weak<Mutex<Self>>>,
+    units_switch: Switch,
     location: EditableLabel,
     location_search: Entry,
     location_search_button: Button,
@@ -47,10 +52,10 @@ pub struct WeatherApplication {
     temperature: Label,
     feels_like: Label,
     current_details: Label,
-    current_details_expander: Expander,
     current_picture: Picture,
     alerts: WeatherAlerts,
     daily: DailyView,
+    hourly: HourlyView,
     preferences: Option<WeatherPreferences>,
 }
 
@@ -75,19 +80,22 @@ fn current_picture_path(current: Option<&CurrentWeather>) -> PathBuf {
 }
 
 impl WeatherApplication {
-    pub fn new(application: Weak<Application>, window: &ApplicationWindow) -> Self {
+    pub fn new(window: &ApplicationWindow) -> Self {
         let temperature = Label::new(None);
         let feels_like = Label::new(None);
         let location = EditableLabel::new("");
         location.set_visible(false);
 
-        let location_image = Image::from_icon_name(Some("network-workgroup-symbolic"));
+        let location_image = Image::from_icon_name(Some("mark-location"));
 
         let location_search = Entry::new();
         let location_search_button = Button::from_icon_name(Some("edit-find"));
         let location_results = ComboBoxText::new();
         location_results.set_visible(false);
         location_results.set_id_column(0);
+        
+        let refresh_button = Button::from_icon_name(Some("view-refresh"));
+        refresh_button.set_visible(false);
 
         let location_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
         location_search.set_placeholder_text(Some("Search your location..."));
@@ -96,13 +104,31 @@ impl WeatherApplication {
         location_box.append(&location_search);
         location_box.append(&location_results);
         location_box.append(&location_search_button);
+        location_box.append(&refresh_button);
 
         let action_bar = ActionBar::new();
         action_bar.set_center_widget(Some(&location_box));
         
-        let refresh_button = Button::from_icon_name(Some("view-refresh"));
-        refresh_button.set_visible(false);
-        action_bar.pack_end(&refresh_button);
+        let preferences_container = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        let preferences_title = Label::new(None);
+        preferences_title.set_markup("<b>Units</b>");
+        preferences_container.append(&preferences_title);
+
+        let units_container = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+        let units_switch = Switch::new();
+        units_container.append(&Label::new(Some("Imperial")));
+        units_container.append(&units_switch);
+        units_container.append(&Label::new(Some("Metric")));
+        preferences_container.append(&units_container);
+
+        let preferences_popover = Popover::new();
+        preferences_popover.set_child(Some(&preferences_container));
+        preferences_popover.set_autohide(true);
+        
+        let preferences_menu = MenuButton::new();
+        preferences_menu.set_icon_name("preferences-system");
+        preferences_menu.set_popover(Some(&preferences_popover));
+        action_bar.pack_end(&preferences_menu);
 
         let current_picture = Picture::new();
         let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
@@ -112,10 +138,8 @@ impl WeatherApplication {
         let chbox = gtk::CenterBox::new();
         chbox.set_center_widget(Some(&hbox));
 
+
         let current_details = Label::new(None);
-        let current_details_expander = Expander::new(Some("Current"));
-        current_details_expander.set_child(Some(&current_details));
-        current_details_expander.set_visible(false);
 
         let alerts_container = gtk::CenterBox::new();
         let alerts = WeatherAlerts::new(None);
@@ -123,14 +147,27 @@ impl WeatherApplication {
 
         let daily = DailyView::new();
         daily.set_visible(false);
+        
+        let hourly = HourlyView::new();
+        hourly.set_visible(false);
+
+        let stack_view = Stack::new();
+        stack_view.add_titled(&alerts_container, Some("alerts"), "Alerts");
+        stack_view.add_titled(&current_details, Some("current"), "Currently");
+        stack_view.add_titled(&hourly.container, Some("hourly"), "Hourly");
+        stack_view.add_titled(&daily.container, Some("daily"), "Week");
+
+        let stack_switch = StackSwitcher::new();
+        stack_switch.set_stack(Some(&stack_view));
+        let stack_switch_container = gtk::CenterBox::new();
+        stack_switch_container.set_center_widget(Some(&stack_switch));
 
         let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10);
         vbox.append(&action_bar);
-        vbox.append(&alerts_container);
         vbox.append(&chbox);
         vbox.append(&feels_like);
-        vbox.append(&current_details_expander);
-        vbox.append(&daily.container);
+        vbox.append(&stack_switch_container);
+        vbox.append(&stack_view);
 
         window.set_child(Some(&vbox));
 
@@ -144,9 +181,10 @@ impl WeatherApplication {
             feels_like,
             current_picture,
             current_details,
-            current_details_expander,
+            units_switch,
             alerts,
             daily,
+            hourly,
             active: true,
             sender: None, 
             mutex: None,
@@ -175,8 +213,35 @@ impl WeatherApplication {
         mutex: Weak<Mutex<Self>>) {
 
         self.sender = Some(sender);
-
+        self.preferences = preferences;
+        
         // Bind signals
+        if let Some(preferences) = &self.preferences {
+            let units_state = match preferences.units {
+                Units::Metric => true,
+                Units::Imperial => false,
+            };
+            self.units_switch.set_state(units_state);
+        }
+
+        let mutex_units = mutex.clone();
+        self.units_switch.connect_property_state_notify(move |switch| {
+            let metric = switch.get_state();
+            let units = match metric {
+                true => Units::Metric,
+                false => Units::Imperial,
+            };
+            if let Ok(app) = mutex_units.upgrade().unwrap().try_lock() {
+                if let Err(err) = app.get_sender().send(WeatherUpdate::SetUnits(units)) {
+                    println!("Unable to update units!");
+                    panic!(err);
+                }
+                if let Err(err) = app.get_sender().send(WeatherUpdate::Refresh) {
+                    println!("Unable to refresh weather after units changed: {}", err);
+                }
+            }
+        });
+
         let mutex_location = mutex.clone();
         self.location.connect_property_editing_notify(move |l| {
             if !l.get_editing() {
@@ -223,7 +288,12 @@ impl WeatherApplication {
                         lat,
                         lon,
                     };
-                    if let Ok(app) = mutex_combo.upgrade().unwrap().try_lock() {
+                    if let Ok(mut app) = mutex_combo.upgrade().unwrap().try_lock() {
+                        if app.preferences.is_some() {
+                            app.preferences
+                                .as_mut().unwrap()
+                                .set_from_location_point(&interest);
+                        }
                         app.request_weather(interest);
                     }
                 }
@@ -233,7 +303,10 @@ impl WeatherApplication {
         let mutex_refresh = mutex.clone();
         self.refresh_button.connect_clicked(move |_| {
             if let Ok(app) = mutex_refresh.upgrade().unwrap().try_lock() {
-                app.refresh_weather();
+                if let Err(err) = app.get_sender().send(WeatherUpdate::Refresh) {
+                    println!("Unable to refresh weather: {}", err);
+                    let _ = app.get_sender().send(WeatherUpdate::Location(None));
+                }
             }
         });
 
@@ -241,7 +314,7 @@ impl WeatherApplication {
         self.mutex = Some(mutex);
 
         // Load current weather if preferences set
-        if let Some(preferences) = &preferences {
+        if let Some(preferences) = &self.preferences {
             self.request_weather(LocationPoint {
                 location: preferences.location.clone(),
                 lat: preferences.lat,
@@ -256,7 +329,6 @@ impl WeatherApplication {
             }
         }
 
-        self.preferences = preferences;
     }
 
     fn refresh_weather(&self) {
@@ -304,6 +376,8 @@ impl WeatherApplication {
             WeatherUpdate::SearchLocations(query) => self.search_location(query),
             WeatherUpdate::SetLocations(locations) => self.update_location_results(locations),
             WeatherUpdate::SavePreferences(preferences) => self.save_preferences(&preferences),
+            WeatherUpdate::SetUnits(units) => self.update_units(units),
+            WeatherUpdate::Refresh => self.refresh_weather(),
         }
     }
     
@@ -318,6 +392,16 @@ impl WeatherApplication {
         } else {
             self.daily.populate(Vec::new(), &self.get_units());
             self.daily.set_visible(false);
+        }
+    }
+
+    fn update_hourly_weather(&mut self, hourly: Option<Vec<CurrentWeather>>) {
+        if let Some(hourly) = hourly {
+            self.hourly.populate(hourly, &self.get_units());
+            self.hourly.set_visible(true);
+        } else {
+            self.hourly.populate(Vec::new(), &self.get_units());
+            self.hourly.set_visible(false);
         }
     }
 
@@ -347,14 +431,11 @@ Precipitation: {}%
             current.visibility.unwrap_or(0),
             units.speed_value(current.wind_speed),
             current.pop * 100.00));
-            self.current_details_expander.set_visible(true);
             self.update_current_image(Some(current));
             
         } else {
             self.temperature.set_markup("<big>Invalid Data</big>");
             self.feels_like.set_markup("Please try another city name!");
-
-            self.current_details_expander.set_visible(false);
             self.update_current_image(None);
         };
         
@@ -374,10 +455,12 @@ Precipitation: {}%
             self.update_units(units);
             self.update_current_weather(Some(weather.current));
             self.update_daily_weather(Some(weather.daily));
+            self.update_hourly_weather(Some(weather.hourly));
             self.update_alerts(Some(weather.alerts));
         } else {
             self.update_current_weather(None);
             self.update_daily_weather(None);
+            self.update_hourly_weather(None);
             self.update_alerts(None);
         };
     }

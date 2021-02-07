@@ -6,6 +6,7 @@ use serde::{
     Deserialize,
 };
 use super::api::units::Units;
+use super::api::location::LocationPoint;
 
 #[derive(Serialize, Deserialize)]
 pub struct WeatherPreferences {
@@ -45,20 +46,17 @@ impl WeatherPreferences {
         }
     }
 
-    pub fn new(lat: f64, lon: f64, location: String, units: Units) -> WeatherPreferences {
-        Self {
-            lat,
-            lon,
-            location,
-            units,
-        }
-    }
-
     pub fn save_config(&self) {
         let path = config_path();
         let file = File::create(path)
             .expect("Unable to create configuration file");
         serde_json::to_writer_pretty(file, &self)
             .expect("Unable to write to configuration file");
+    }
+
+    pub fn set_from_location_point(&mut self, location_point: &LocationPoint) {
+        self.location = location_point.location.clone();
+        self.lat = location_point.lat;
+        self.lon = location_point.lon;
     }
 }
