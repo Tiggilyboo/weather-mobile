@@ -2,7 +2,7 @@ mod daily;
 mod alert;
 mod hourly;
 
-use std::sync::{Mutex, Weak};
+use std::sync::{Arc, Mutex, Weak};
 use std::path::{Path, PathBuf};
 use std::env::current_dir;
 use core::future::Future;
@@ -24,6 +24,7 @@ use gtk::{
     ComboBoxText,
     ListStore,
     MenuButton,
+    Widget,
 };
 use flume::{
     Sender,
@@ -152,22 +153,43 @@ impl WeatherApplication {
         hourly.set_visible(false);
 
         let stack_view = Stack::new();
-        stack_view.add_titled(&alerts_container, Some("alerts"), "Alerts");
-        stack_view.add_titled(&current_details, Some("current"), "Currently");
-        stack_view.add_titled(&hourly.container, Some("hourly"), "Hourly");
-        stack_view.add_titled(&daily.container, Some("daily"), "Week");
-
-        let stack_switch = StackSwitcher::new();
-        stack_switch.set_stack(Some(&stack_view));
-        let stack_switch_container = gtk::CenterBox::new();
-        stack_switch_container.set_center_widget(Some(&stack_switch));
+        let stack_pages = vec![
+            stack_view.add_titled(&alerts_container, Some("alerts"), "Alerts"),
+            stack_view.add_titled(&current_details, Some("current"), "Currently"),
+            stack_view.add_titled(&hourly.container, Some("hourly"), "Hourly"),
+            stack_view.add_titled(&daily.container, Some("daily"), "Week"),
+        ];
+        let stack_buttons = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let stack_view_arc = &Arc::new(Mutex::new(stack_view));
+        for stack_page in stack_pages.iter() {
+            let stack_button = Button::new();
+            if let Some(title) = stack_page.get_title() {
+                stack_button.set_label(&title);
+            }
+            let stack_button_arc = stack_view_arc.clone();
+            let name = stack_page.get_name().clone().unwrap();
+            stack_button.connect_clicked(move |_| {
+                if let Ok(stack_view) = stack_button_arc.try_lock() {
+                    if let Some(page) = stack_view.get_child_by_name(&name) {
+                        stack_view.set_visible_child(&page);
+                    }
+                }
+            });
+            stack_buttons.append(&stack_button);
+        }
+        let stack_buttons_container = gtk::CenterBox::new();
+        stack_buttons_container.set_center_widget(Some(&stack_buttons));
 
         let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10);
         vbox.append(&action_bar);
         vbox.append(&chbox);
         vbox.append(&feels_like);
-        vbox.append(&stack_switch_container);
-        vbox.append(&stack_view);
+        vbox.append(&stack_buttons_container);
+
+        if let Ok(stack_view) = stack_view_arc.try_lock() {
+            let widget = &stack_view.clone().upcast::<Widget>();
+            vbox.append(widget);
+        }
 
         window.set_child(Some(&vbox));
 
