@@ -90,6 +90,7 @@ impl HourlyView {
         let scroller = ScrolledWindow::new();
         scroller.set_child(Some(&contents));
         scroller.set_propagate_natural_height(true);
+        scroller.set_propagate_natural_width(true);
         scroller.set_kinetic_scrolling(true);
 
         Self {

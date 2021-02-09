@@ -148,16 +148,23 @@ impl WeatherApplication {
 
         let daily = DailyView::new();
         daily.set_visible(false);
+        let daily_container = gtk::CenterBox::new();
+        daily_container.set_center_widget(Some(&daily.container));
         
         let hourly = HourlyView::new();
         hourly.set_visible(false);
+        let hourly_container = gtk::CenterBox::new();
+        hourly_container.set_center_widget(Some(&hourly.container));
 
         let stack_view = Stack::new();
+        stack_view.set_vhomogeneous(false);
+        stack_view.set_interpolate_size(true);
+
         let stack_pages = vec![
             stack_view.add_titled(&alerts_container, Some("alerts"), "Alerts"),
             stack_view.add_titled(&current_details, Some("current"), "Currently"),
-            stack_view.add_titled(&hourly.container, Some("hourly"), "Hourly"),
-            stack_view.add_titled(&daily.container, Some("daily"), "Week"),
+            stack_view.add_titled(&hourly_container, Some("hourly"), "Hourly"),
+            stack_view.add_titled(&daily_container, Some("daily"), "Weekly"),
         ];
         let stack_buttons = gtk::Box::new(gtk::Orientation::Horizontal, 0);
         let stack_view_arc = &Arc::new(Mutex::new(stack_view));

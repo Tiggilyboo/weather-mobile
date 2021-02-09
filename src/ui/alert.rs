@@ -46,6 +46,7 @@ impl WeatherAlerts {
         let container = gtk::ScrolledWindow::new();
         container.set_child(Some(&contents));
         container.set_propagate_natural_width(true);
+        container.set_propagate_natural_height(true);
         container.set_kinetic_scrolling(true);
 
         let mut wa = WeatherAlerts {
