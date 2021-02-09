@@ -1,5 +1,5 @@
 [package]
-name = "weather"
+name = "weather-mobile"
 version = "0.1.0"
 authors = ["Simon Willshire <me@simonwillshire.com>"]
 edition = "2018"

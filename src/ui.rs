@@ -20,7 +20,6 @@ use gtk::{
     Button,
     Switch,
     Stack,
-    StackSwitcher,
     ComboBoxText,
     ListStore,
     MenuButton,
@@ -285,16 +284,15 @@ impl WeatherApplication {
         let mutex_location_search = mutex.clone();
         self.location_search_button.connect_clicked(move |_| { 
             if let Ok(app) = mutex_location_search.upgrade().unwrap().try_lock() {
-                if let Some(search_query) = app.location_search.get_text() {
-                    if search_query.len() == 0 {
-                        return;
-                    }
-                    let search_query: &str = &search_query;
-                    app.get_sender().send(WeatherUpdate::SearchLocations(search_query.to_string()))
-                        .expect("Unable to send WeatherUpdate::SearchLocations(None) for Search");
-                } else {
-                    println!("Unable to lock mutex_location");
+                let search_query = app.location_search.get_text();
+                if search_query.len() == 0 {
+                    return;
                 }
+                let search_query: &str = &search_query;
+                app.get_sender().send(WeatherUpdate::SearchLocations(search_query.to_string()))
+                    .expect("Unable to send WeatherUpdate::SearchLocations(None) for Search");
+            } else {
+                println!("Unable to lock mutex_location");
             }
         });
 
@@ -321,7 +319,8 @@ impl WeatherApplication {
                         if app.preferences.is_some() {
                             app.preferences
                                 .as_mut().unwrap()
-                                .set_from_location_point(&interest);
+                                .set_from_location_point(&interest)
+                                .save_config();
                         }
                         app.request_weather(interest);
                     }

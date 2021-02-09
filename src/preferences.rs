@@ -54,9 +54,11 @@ impl WeatherPreferences {
             .expect("Unable to write to configuration file");
     }
 
-    pub fn set_from_location_point(&mut self, location_point: &LocationPoint) {
+    pub fn set_from_location_point(&mut self, location_point: &LocationPoint) -> &Self {
         self.location = location_point.location.clone();
         self.lat = location_point.lat;
         self.lon = location_point.lon;
+
+        self
     }
 }
