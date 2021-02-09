@@ -6,9 +6,9 @@ A simple GTK weather app to play with Linux Mobile development in GTK4 and OpenW
 ```bash
 makepkg --install
 ```
-*Other* (Requires [rustup](https://www.rust-lang.org/tools/install))
+*Other* (Requires [rust install](https://www.rust-lang.org/tools/install))
 ```bash
-cargo install --root=/some/install/dir weather-mobile
+cargo install --path .
 ```
 
 ## Build
