@@ -11,6 +11,7 @@ use gtk::prelude::*;
 use gtk::{
     ApplicationWindow,
     ActionBar,
+    CenterBox,
     Label,
     EditableLabel,
     Picture,
@@ -56,6 +57,8 @@ pub struct WeatherApplication {
     alerts: WeatherAlerts,
     daily: DailyView,
     hourly: HourlyView,
+    stack_view: Arc<Mutex<Stack>>,
+    stack_buttons_container: CenterBox,
     preferences: Option<WeatherPreferences>,
 }
 
@@ -135,47 +138,47 @@ impl WeatherApplication {
         hbox.append(&current_picture);
         hbox.append(&temperature);
 
-        let chbox = gtk::CenterBox::new();
+        let chbox = CenterBox::new();
         chbox.set_center_widget(Some(&hbox));
 
 
         let current_details = Label::new(None);
 
-        let alerts_container = gtk::CenterBox::new();
+        let alerts_container = CenterBox::new();
         let alerts = WeatherAlerts::new(None);
         alerts_container.set_center_widget(Some(&alerts.container));
 
         let daily = DailyView::new();
         daily.set_visible(false);
-        let daily_container = gtk::CenterBox::new();
+        let daily_container = CenterBox::new();
         daily_container.set_center_widget(Some(&daily.container));
         
         let hourly = HourlyView::new();
         hourly.set_visible(false);
-        let hourly_container = gtk::CenterBox::new();
+        let hourly_container = CenterBox::new();
         hourly_container.set_center_widget(Some(&hourly.container));
 
-        let stack_view = Stack::new();
-        stack_view.set_vhomogeneous(false);
-        stack_view.set_interpolate_size(true);
+        let stack = Stack::new();
+        stack.set_vhomogeneous(false);
+        stack.set_interpolate_size(true);
 
         let stack_pages = vec![
-            stack_view.add_titled(&alerts_container, Some("alerts"), "Alerts"),
-            stack_view.add_titled(&current_details, Some("current"), "Currently"),
-            stack_view.add_titled(&hourly_container, Some("hourly"), "Hourly"),
-            stack_view.add_titled(&daily_container, Some("daily"), "Weekly"),
+            stack.add_titled(&alerts_container, Some("alerts"), "Alerts"),
+            stack.add_titled(&current_details, Some("current"), "Currently"),
+            stack.add_titled(&hourly_container, Some("hourly"), "Hourly"),
+            stack.add_titled(&daily_container, Some("daily"), "Weekly"),
         ];
         let stack_buttons = gtk::Box::new(gtk::Orientation::Horizontal, 0);
-        let stack_view_arc = &Arc::new(Mutex::new(stack_view));
+        let stack_view = &Arc::new(Mutex::new(stack));
         for stack_page in stack_pages.iter() {
             let stack_button = Button::new();
             if let Some(title) = stack_page.get_title() {
                 stack_button.set_label(&title);
             }
-            let stack_button_arc = stack_view_arc.clone();
+            let stack_view_arc = stack_view.clone();
             let name = stack_page.get_name().clone().unwrap();
             stack_button.connect_clicked(move |_| {
-                if let Ok(stack_view) = stack_button_arc.try_lock() {
+                if let Ok(stack_view) = stack_view_arc.try_lock() {
                     if let Some(page) = stack_view.get_child_by_name(&name) {
                         stack_view.set_visible_child(&page);
                     }
@@ -183,7 +186,7 @@ impl WeatherApplication {
             });
             stack_buttons.append(&stack_button);
         }
-        let stack_buttons_container = gtk::CenterBox::new();
+        let stack_buttons_container = CenterBox::new();
         stack_buttons_container.set_center_widget(Some(&stack_buttons));
 
         let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10);
@@ -192,7 +195,7 @@ impl WeatherApplication {
         vbox.append(&feels_like);
         vbox.append(&stack_buttons_container);
 
-        if let Ok(stack_view) = stack_view_arc.try_lock() {
+        if let Ok(stack_view) = stack_view.try_lock() {
             let widget = &stack_view.clone().upcast::<Widget>();
             vbox.append(widget);
         }
@@ -213,6 +216,8 @@ impl WeatherApplication {
             alerts,
             daily,
             hourly,
+            stack_view: stack_view.clone(),
+            stack_buttons_container,
             active: true,
             sender: None, 
             mutex: None,
@@ -480,7 +485,6 @@ Precipitation: {}%
     fn update_weather(&mut self, weather: Option<WeatherData>) {
         if let Some(weather) = weather {
             let units = weather.units.expect("units");
-            println!("units: {}", units);
             self.update_units(units);
             self.update_current_weather(Some(weather.current));
             self.update_daily_weather(Some(weather.daily));
@@ -577,6 +581,7 @@ Precipitation: {}%
             self.refresh_button.set_visible(true);
             self.daily.set_visible(true);
             self.location.set_text(&location);
+            self.set_stack_components_visible(true);
         } else {
             self.location.set_text("");
             self.location.set_visible(false);
@@ -587,6 +592,18 @@ Precipitation: {}%
             self.location_search.set_text("");
             self.update_current_weather(None);
             self.update_daily_weather(None);
+            self.update_hourly_weather(None);
+            self.set_stack_components_visible(false);
+        }
+    }
+
+    fn set_stack_components_visible(&self, visible: bool) {
+        self.stack_buttons_container.set_visible(visible);
+
+        if let Ok(stack_view) = self.stack_view.try_lock() {
+            stack_view.set_visible(visible);
+        } else {
+            println!("Unable to update stack view, mutex could not be locked");
         }
     }
 
