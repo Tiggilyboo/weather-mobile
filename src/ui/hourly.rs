@@ -109,6 +109,7 @@ impl HourlyView {
         for hour in hourly.iter() {
             let hour_component = build_hourly_component(hour, units);
             self.contents.append(&hour_component);
+            self.hours.push(hour_component);
         }
     }
 

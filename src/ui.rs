@@ -480,6 +480,7 @@ Precipitation: {}%
     fn update_weather(&mut self, weather: Option<WeatherData>) {
         if let Some(weather) = weather {
             let units = weather.units.expect("units");
+            println!("units: {}", units);
             self.update_units(units);
             self.update_current_weather(Some(weather.current));
             self.update_daily_weather(Some(weather.daily));
