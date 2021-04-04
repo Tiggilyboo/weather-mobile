@@ -10,5 +10,5 @@ build() {
 }
 
 package() {
-    cargo install --root="$pkgdir" weather
+    cargo install --root="$pkgdir" weather-mobile
 }

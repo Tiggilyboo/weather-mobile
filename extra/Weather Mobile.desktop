@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+TryExec=weather-mobile
+Exec=weather-mobile
+Icon=Weather Mobile
+Terminal=false
+
+Name=Weather Mobile
+GenericName=Weather
+Comment=A mobile weather application
+StartupWMClass=Weather

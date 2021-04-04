@@ -14,6 +14,18 @@ pub struct WeatherAlerts {
     pub alerts: Vec<gtk::InfoBar>,
 }
 
+fn create_empty_alert() -> InfoBar {
+    let i = InfoBar::new();
+    i.set_message_type(MessageType::Other);
+
+    let label = Label::new(Some("No alerts"));
+    label.set_wrap(true);
+    label.set_max_width_chars(80);
+
+    i.add_child(&label);
+    i
+}
+
 fn create_infobar_alert(alert: &WeatherAlert) -> InfoBar {
     let i = InfoBar::new();
     i.set_message_type(MessageType::Warning);
@@ -68,6 +80,9 @@ impl WeatherAlerts {
         self.alerts.clear();
         for alert_data in data.iter() {
             self.alerts.push(create_infobar_alert(alert_data));
+        }
+        if self.alerts.is_empty() {
+            self.alerts.push(create_empty_alert());
         }
         for alert in self.alerts.iter() {
             self.contents.append(alert);

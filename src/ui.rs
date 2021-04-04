@@ -305,13 +305,16 @@ impl WeatherApplication {
         self.location_results.connect_changed(move |combo| {
             if let Some(active_iter) = combo.get_active_iter() {
                 if let Some(model) = combo.get_model() {
-                    let location = model.get_value(&active_iter, 0).get::<String>()
+                    let location = model
+                        .get(&active_iter, 0).get::<String>()
                         .expect("location from model at col 0 is String")
                         .unwrap();
-                    let lat = model.get_value(&active_iter, 1).get::<f64>()
+                    let lat = model
+                        .get(&active_iter, 1).get::<f64>()
                         .expect("lat from model at col 1 is F64")
                         .unwrap();
-                    let lon = model.get_value(&active_iter, 2).get::<f64>()
+                    let lon = model
+                        .get(&active_iter, 2).get::<f64>()
                         .expect("lon from model at col 2 is F64")
                         .unwrap();
 
@@ -526,7 +529,7 @@ Precipitation: {}%
 
     fn locations_to_store(locations: Vec<LocationPoint>) -> ListStore {
         let col_types: [gtk::glib::Type; 3] = [
-            gtk::glib::Type::String, 
+            gtk::glib::Type::STRING, 
             gtk::glib::Type::F64,
             gtk::glib::Type::F64,
         ];
