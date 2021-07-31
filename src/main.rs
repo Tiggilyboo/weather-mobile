@@ -9,15 +9,9 @@ mod ui;
 mod preferences;
 mod rpc;
 
-use preferences::{
-    WeatherPreferences,
-};
-use ui::{
-    WeatherApplication,
-};
-use flume::{
-    unbounded,
-};
+use preferences::WeatherPreferences;
+use ui::WeatherApplication;
+use flume::unbounded;
 use std::sync::{Arc, Mutex};
 
 use gtk::ApplicationWindow;
