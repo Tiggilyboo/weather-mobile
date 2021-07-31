@@ -67,8 +67,8 @@ fn main() {
     let app = Application::new(
         Some("com.github.tiggilyboo.weather"),
         Default::default(),
-    ).expect("Initialisation failed");
+    );
 
     app.connect_activate(initialise_ui);
-    app.run(&std::env::args().collect::<Vec<_>>());
+    app.run();
 }

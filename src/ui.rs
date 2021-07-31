@@ -26,9 +26,7 @@ use gtk::{
     MenuButton,
     Widget,
 };
-use flume::{
-    Sender,
-};
+use flume::Sender;
 use super::preferences::WeatherPreferences;
 use super::api::{
     weather::*,
@@ -172,14 +170,14 @@ impl WeatherApplication {
         let stack_view = &Arc::new(Mutex::new(stack));
         for stack_page in stack_pages.iter() {
             let stack_button = Button::new();
-            if let Some(title) = stack_page.get_title() {
+            if let Some(title) = stack_page.title() {
                 stack_button.set_label(&title);
             }
             let stack_view_arc = stack_view.clone();
-            let name = stack_page.get_name().clone().unwrap();
+            let name = stack_page.name().clone().unwrap();
             stack_button.connect_clicked(move |_| {
                 if let Ok(stack_view) = stack_view_arc.try_lock() {
-                    if let Some(page) = stack_view.get_child_by_name(&name) {
+                    if let Some(page) = stack_view.child_by_name(&name) {
                         stack_view.set_visible_child(&page);
                     }
                 }
@@ -258,8 +256,8 @@ impl WeatherApplication {
         }
 
         let mutex_units = mutex.clone();
-        self.units_switch.connect_property_state_notify(move |switch| {
-            let metric = switch.get_state();
+        self.units_switch.connect_state_notify(move |switch| {
+            let metric = switch.state();
             let units = match metric {
                 true => Units::Metric,
                 false => Units::Imperial,
@@ -267,7 +265,7 @@ impl WeatherApplication {
             if let Ok(app) = mutex_units.upgrade().unwrap().try_lock() {
                 if let Err(err) = app.get_sender().send(WeatherUpdate::SetUnits(units)) {
                     println!("Unable to update units!");
-                    panic!(err);
+                    panic!("{}", err);
                 }
                 if let Err(err) = app.get_sender().send(WeatherUpdate::Refresh) {
                     println!("Unable to refresh weather after units changed: {}", err);
@@ -276,8 +274,8 @@ impl WeatherApplication {
         });
 
         let mutex_location = mutex.clone();
-        self.location.connect_property_editing_notify(move |l| {
-            if !l.get_editing() {
+        self.location.connect_editing_notify(move |l| {
+            if !l.is_editing() {
                 return;
             }
             if let Ok(app) = mutex_location.upgrade().unwrap().try_lock() {
@@ -289,7 +287,7 @@ impl WeatherApplication {
         let mutex_location_search = mutex.clone();
         self.location_search_button.connect_clicked(move |_| { 
             if let Ok(app) = mutex_location_search.upgrade().unwrap().try_lock() {
-                let search_query = app.location_search.get_text();
+                let search_query = app.location_search.text();
                 if search_query.len() == 0 {
                     return;
                 }
@@ -303,20 +301,17 @@ impl WeatherApplication {
 
         let mutex_combo = mutex.clone();
         self.location_results.connect_changed(move |combo| {
-            if let Some(active_iter) = combo.get_active_iter() {
-                if let Some(model) = combo.get_model() {
+            if let Some(active_iter) = combo.active_iter() {
+                if let Some(model) = combo.model() {
                     let location = model
                         .get(&active_iter, 0).get::<String>()
-                        .expect("location from model at col 0 is String")
-                        .unwrap();
+                        .expect("location from model at col 0 is String");
                     let lat = model
                         .get(&active_iter, 1).get::<f64>()
-                        .expect("lat from model at col 1 is F64")
-                        .unwrap();
+                        .expect("lat from model at col 1 is F64");
                     let lon = model
                         .get(&active_iter, 2).get::<f64>()
-                        .expect("lon from model at col 2 is F64")
-                        .unwrap();
+                        .expect("lon from model at col 2 is F64");
 
                     let interest = LocationPoint {
                         location,
@@ -534,11 +529,10 @@ Precipitation: {}%
             gtk::glib::Type::F64,
         ];
         let model = ListStore::new(&col_types);
-        let col_indices: [u32; 3] = [0, 1, 2];
 
         for l in locations.iter() {
-            let values: [&dyn ToValue; 3] = [&l.location, &l.lat, &l.lon];
-            model.set(&model.append(), &col_indices, &values);
+            let columns_values: &[(u32, &dyn ToValue)] = &[(0, &l.location), (1, &l.lat), (2, &l.lon)];
+            model.set(&model.append(), &columns_values);
         }
 
         model
