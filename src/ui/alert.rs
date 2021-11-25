@@ -1,17 +1,17 @@
 use crate::api::weather::{
     WeatherAlert,
 };
-use gtk::prelude::*;
-use gtk::{
+use gtk4::prelude::*;
+use gtk4::{
     Label,
     InfoBar,
     MessageType,
 };
 
 pub struct WeatherAlerts {
-    pub container: gtk::ScrolledWindow,
-    pub contents: gtk::Box,
-    pub alerts: Vec<gtk::InfoBar>,
+    pub container: gtk4::ScrolledWindow,
+    pub contents: gtk4::Box,
+    pub alerts: Vec<gtk4::InfoBar>,
 }
 
 fn create_empty_alert() -> InfoBar {
@@ -44,7 +44,7 @@ fn create_infobar_alert(alert: &WeatherAlert) -> InfoBar {
 
     label.set_use_markup(true);
     label.set_max_width_chars(80);
-    label.set_wrap_mode(gtk::pango::WrapMode::Word);
+    label.set_wrap_mode(gtk4::pango::WrapMode::Word);
     label.set_wrap(true);
 
     i.add_child(&label);
@@ -54,8 +54,8 @@ fn create_infobar_alert(alert: &WeatherAlert) -> InfoBar {
 impl WeatherAlerts {
     pub fn new(data: Option<Vec<WeatherAlert>>) -> Self {
         let alerts: Vec<InfoBar> = Vec::new();
-        let contents = gtk::Box::new(gtk::Orientation::Vertical, 10);
-        let container = gtk::ScrolledWindow::new();
+        let contents = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
+        let container = gtk4::ScrolledWindow::new();
         container.set_child(Some(&contents));
         container.set_propagate_natural_width(true);
         container.set_propagate_natural_height(true);

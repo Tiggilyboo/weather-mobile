@@ -1,6 +1,4 @@
-use super::api::weather::{
-    WeatherData,
-};
+use super::api::weather::WeatherData;
 use super::api::location::LocationPoint;
 use super::api::units::Units;
 use super::preferences::WeatherPreferences;

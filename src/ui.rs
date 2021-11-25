@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::env::current_dir;
 use core::future::Future;
 
-use gtk::prelude::*;
-use gtk::{
+use gtk4::prelude::*;
+use gtk4::{
     ApplicationWindow,
     ActionBar,
     CenterBox,
@@ -98,7 +98,7 @@ impl WeatherApplication {
         let refresh_button = Button::from_icon_name(Some("view-refresh"));
         refresh_button.set_visible(false);
 
-        let location_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        let location_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
         location_search.set_placeholder_text(Some("Search your location..."));
         location_box.append(&location_image);
         location_box.append(&location);
@@ -110,12 +110,12 @@ impl WeatherApplication {
         let action_bar = ActionBar::new();
         action_bar.set_center_widget(Some(&location_box));
         
-        let preferences_container = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        let preferences_container = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
         let preferences_title = Label::new(None);
         preferences_title.set_markup("<b>Units</b>");
         preferences_container.append(&preferences_title);
 
-        let units_container = gtk::Box::new(gtk::Orientation::Horizontal, 5);
+        let units_container = gtk4::Box::new(gtk4::Orientation::Horizontal, 5);
         let units_switch = Switch::new();
         units_container.append(&Label::new(Some("Imperial")));
         units_container.append(&units_switch);
@@ -132,7 +132,7 @@ impl WeatherApplication {
         action_bar.pack_end(&preferences_menu);
 
         let current_picture = Picture::new();
-        let hbox = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        let hbox = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
         hbox.append(&current_picture);
         hbox.append(&temperature);
 
@@ -166,7 +166,7 @@ impl WeatherApplication {
             stack.add_titled(&hourly_container, Some("hourly"), "Hourly"),
             stack.add_titled(&daily_container, Some("daily"), "Weekly"),
         ];
-        let stack_buttons = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        let stack_buttons = gtk4::Box::new(gtk4::Orientation::Horizontal, 0);
         let stack_view = &Arc::new(Mutex::new(stack));
         for stack_page in stack_pages.iter() {
             let stack_button = Button::new();
@@ -187,7 +187,7 @@ impl WeatherApplication {
         let stack_buttons_container = CenterBox::new();
         stack_buttons_container.set_center_widget(Some(&stack_buttons));
 
-        let vbox = gtk::Box::new(gtk::Orientation::Vertical, 10);
+        let vbox = gtk4::Box::new(gtk4::Orientation::Vertical, 10);
         vbox.append(&action_bar);
         vbox.append(&chbox);
         vbox.append(&feels_like);
@@ -226,7 +226,7 @@ impl WeatherApplication {
     }
 
     fn spawn_local<Fs: 'static + Future<Output = ()>>(&self, sender_future: Fs) {
-        gtk::glib::MainContext::default().spawn_local(sender_future);
+        gtk4::glib::MainContext::default().spawn_local(sender_future);
     }
 
     fn get_sender(&self) -> Sender<WeatherUpdate> {
@@ -438,7 +438,7 @@ impl WeatherApplication {
 
     fn update_current_image(&mut self, current: Option<CurrentWeather>) {
         let picture_path = current_picture_path(current.as_ref());
-        self.current_picture.set_filename(Some(picture_path.to_str().unwrap()));
+        self.current_picture.set_filename(picture_path.to_str().unwrap());
     }
 
     fn update_current_weather(&mut self, current: Option<CurrentWeather>) {
@@ -523,10 +523,10 @@ Precipitation: {}%
     }
 
     fn locations_to_store(locations: Vec<LocationPoint>) -> ListStore {
-        let col_types: [gtk::glib::Type; 3] = [
-            gtk::glib::Type::STRING, 
-            gtk::glib::Type::F64,
-            gtk::glib::Type::F64,
+        let col_types: [gtk4::glib::Type; 3] = [
+            gtk4::glib::Type::STRING, 
+            gtk4::glib::Type::F64,
+            gtk4::glib::Type::F64,
         ];
         let model = ListStore::new(&col_types);
 

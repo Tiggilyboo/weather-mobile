@@ -5,27 +5,27 @@ use crate::api::weather::{
 };
 use super::icon_path;
 
-use gtk::prelude::*;
-use gtk::{
+use gtk4::prelude::*;
+use gtk4::{
     Label,
     Image,
     ScrolledWindow,
 };
 
 pub struct HourlyView {
-    pub container: gtk::ScrolledWindow, 
-    contents: gtk::Box,
-    hours: Vec<gtk::Box>,
+    pub container: gtk4::ScrolledWindow, 
+    contents: gtk4::Box,
+    hours: Vec<gtk4::Box>,
 }
 
 pub const RAIN_ICON: &str = "weather-showers-scattered";
 pub const SNOW_ICON: &str = "weather-snow";
 pub const GUST_ICON: &str = "weather-windy-symbolic";
 
-pub fn build_wind_component(data: Option<f64>, units: &Units) -> Option<gtk::Box> {
+pub fn build_wind_component(data: Option<f64>, units: &Units) -> Option<gtk4::Box> {
     if let Some(speed) = data {
         let speed = &units.speed_value(speed);
-        let wind_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        let wind_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 3);
         wind_box.append(&Image::from_icon_name(Some(GUST_ICON)));
         wind_box.append(&Label::new(Some(speed)));
 
@@ -35,10 +35,10 @@ pub fn build_wind_component(data: Option<f64>, units: &Units) -> Option<gtk::Box
     }
 }
 
-pub fn build_precipitation_component(icon: &str, data: Option<f64>, units: &Units) -> Option<gtk::Box> {
+pub fn build_precipitation_component(icon: &str, data: Option<f64>, units: &Units) -> Option<gtk4::Box> {
     if let Some(volume) = data {
         let rain_volume = &units.volume_value(volume);
-        let rain_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
+        let rain_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 3);
         rain_box.append(&Image::from_icon_name(Some(icon)));
         rain_box.append(&Label::new(Some(rain_volume)));
 
@@ -48,8 +48,8 @@ pub fn build_precipitation_component(icon: &str, data: Option<f64>, units: &Unit
     }
 }
 
-fn build_hourly_component(data: &HourlyWeather, units: &Units) -> gtk::Box {
-    let component = gtk::Box::new(gtk::Orientation::Vertical, 5);
+fn build_hourly_component(data: &HourlyWeather, units: &Units) -> gtk4::Box {
+    let component = gtk4::Box::new(gtk4::Orientation::Vertical, 5);
 
     let time = Label::new(Some(&data.time("%T")));
     component.append(&time);
@@ -60,7 +60,7 @@ fn build_hourly_component(data: &HourlyWeather, units: &Units) -> gtk::Box {
         icon_path(None)
     };
     let status = Image::from_file(icon_path);
-    status.set_icon_size(gtk::IconSize::Large);
+    status.set_icon_size(gtk4::IconSize::Large);
     component.append(&status);
 
     let temperature = Label::new(Some(&units.temperature_value(data.temp)));
@@ -85,7 +85,7 @@ fn build_hourly_component(data: &HourlyWeather, units: &Units) -> gtk::Box {
 
 impl HourlyView {
     pub fn new() -> Self {
-        let contents = gtk::Box::new(gtk::Orientation::Horizontal, 10);
+        let contents = gtk4::Box::new(gtk4::Orientation::Horizontal, 10);
 
         let scroller = ScrolledWindow::new();
         scroller.set_child(Some(&contents));

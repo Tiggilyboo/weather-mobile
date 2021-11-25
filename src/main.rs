@@ -1,4 +1,4 @@
-extern crate gtk;
+extern crate gtk4;
 extern crate flume;
 extern crate serde;
 extern crate serde_json;
@@ -14,11 +14,12 @@ use ui::WeatherApplication;
 use flume::unbounded;
 use std::sync::{Arc, Mutex};
 
-use gtk::ApplicationWindow;
-use gtk::Application;
-use gtk::prelude::*;
+use gtk4::ApplicationWindow;
+use gtk4::Application;
+use gtk4::prelude::*;
+use gtk4::glib::MainContext;
 
-fn initialise_ui(app: &gtk::Application) {
+fn initialise_ui(app: &Application) {
     let window = ApplicationWindow::new(app);
     window.set_title(Some("Weather"));
     window.set_show_menubar(false);
@@ -36,7 +37,7 @@ fn initialise_ui(app: &gtk::Application) {
         panic!("Unable to load weather application");
     }
 
-    let main_ctx = gtk::glib::MainContext::default();
+    let main_ctx = MainContext::default();
     let future = async move {
         while let Ok(item) = receiver.recv_async().await {
             match weather_app.try_lock() {

@@ -11,15 +11,14 @@ flume = "0.10"
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 
+[dependencies.gtk4]
+version = "0.3.1"
+package = "gtk4"
+features = []
+
 [dependencies.isahc]
 version = "1.0"
 features = ["json"]
-
-[dependencies.gtk]
-git = "https://github.com/gtk-rs/gtk4-rs"
-branch = "master"
-package = "gtk4"
-features = []
 
 [dependencies.time]
 version = "0.2.25"
