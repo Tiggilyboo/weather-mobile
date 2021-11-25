@@ -1,4 +1,4 @@
-extern crate gtk4;
+extern crate gtk;
 extern crate flume;
 extern crate serde;
 extern crate serde_json;
@@ -14,10 +14,10 @@ use ui::WeatherApplication;
 use flume::unbounded;
 use std::sync::{Arc, Mutex};
 
-use gtk4::ApplicationWindow;
-use gtk4::Application;
-use gtk4::prelude::*;
-use gtk4::glib::MainContext;
+use gtk::ApplicationWindow;
+use gtk::Application;
+use gtk::prelude::*;
+use gtk::glib::MainContext;
 
 fn initialise_ui(app: &Application) {
     let window = ApplicationWindow::new(app);

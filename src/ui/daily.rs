@@ -1,5 +1,5 @@
-use gtk4::prelude::*;
-use gtk4::{
+use gtk::prelude::*;
+use gtk::{
     Image,
     Label,
 };
@@ -13,12 +13,12 @@ use crate::ui::hourly::{
 };
 
 pub struct DayView {
-    container: gtk4::Box,
+    container: gtk::Box,
 }
 
 impl DayView {
     pub fn from_daily_weather(data: &DailyWeather, units: &Units) -> Self {
-        let container = gtk4::Box::new(gtk4::Orientation::Vertical, 5);
+        let container = gtk::Box::new(gtk::Orientation::Vertical, 5);
 
         let icon_path = if data.status.len() > 0 {
             icon_path(Some(data.status[0].icon.clone()))
@@ -31,7 +31,7 @@ impl DayView {
         container.append(&date);
 
         let status = Image::from_file(icon_path);
-        status.set_icon_size(gtk4::IconSize::Large);
+        status.set_icon_size(gtk::IconSize::Large);
         container.append(&status);
 
         let temp = Label::new(None);
@@ -44,7 +44,7 @@ impl DayView {
         container.append(&feels_like);
 
         if data.pop > 0.00 {
-            let precipitation = gtk4::Box::new(gtk4::Orientation::Horizontal, 5);
+            let precipitation = gtk::Box::new(gtk::Orientation::Horizontal, 5);
 
             let pop = Label::new(Some(&format!("{:.0}% chance", data.pop * 100.00)));
             precipitation.append(&pop);
@@ -82,7 +82,7 @@ impl DayView {
         details_label.set_markup(&details);
         container.append(&details_label);
         
-        let sun_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 5);
+        let sun_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
         if let Some(sunrise) = data.sunrise() {
             let sunrise_img = Image::from_icon_name(Some("daytime-sunrise-symbolic"));
             let sunrise = Label::new(Some(&sunrise));
@@ -104,16 +104,16 @@ impl DayView {
 }
 
 pub struct DailyView {
-    pub container: gtk4::ScrolledWindow,
+    pub container: gtk::ScrolledWindow,
     pub views: Vec<DayView>,
-    contents: gtk4::Box,
+    contents: gtk::Box,
 }
 
 impl DailyView {
     pub fn new() -> Self {
-        let contents = gtk4::Box::new(gtk4::Orientation::Horizontal, 20);
+        let contents = gtk::Box::new(gtk::Orientation::Horizontal, 20);
 
-        let scroller = gtk4::ScrolledWindow::new();
+        let scroller = gtk::ScrolledWindow::new();
         scroller.set_child(Some(&contents));
         scroller.set_propagate_natural_height(true);
         scroller.set_propagate_natural_width(true);

@@ -1,10 +1,7 @@
 use serde::Deserialize;
 use isahc::prelude::*;
 use super::units::Units;
-use time::{
-    OffsetDateTime,
-    UtcOffset,
-};
+use time::OffsetDateTime;
 
 const OPEN_WEATHER_API_KEY: &str = "ad589466a7b4db65d43f8e6c850f97e5";
 const OPEN_WEATHER_API_URL: &str = "https://api.openweathermap.org/data";
@@ -95,21 +92,26 @@ pub struct WeatherData {
 
 pub fn time_from(dt: i64, format: &str) -> String {   
     let datetime = datetime_from(dt);
-    datetime.time().format(format)
-}
-
-pub fn current_utc_offset() -> UtcOffset {
-    if let Ok(offset) = UtcOffset::try_current_local_offset() {
-        offset
+    let time = datetime.time();
+    if let Ok(format_desc) = time::format_description::parse(format) {
+        if let Ok(formatted_time) = time.format(&format_desc) {
+            formatted_time
+        } else {
+            // TODO: crap
+            panic!("Unable to convert time from time api value")
+        }
     } else {
-        UtcOffset::UTC
+        panic!("Invalid format description supplied")
     }
 }
-pub fn datetime_from(dt: i64) -> OffsetDateTime {
-    let datetime = OffsetDateTime::from_unix_timestamp(dt);
-    let utc_offset = current_utc_offset();
 
-    datetime.to_offset(utc_offset)
+pub fn datetime_from(dt: i64) -> OffsetDateTime {
+    if let Ok(datetime) = OffsetDateTime::from_unix_timestamp(dt) {
+        datetime
+    } else {
+        // TODO: crap
+        panic!("Unable to convert to date & time offset from api value")
+    }
 }
 
 pub fn date_from(dt: i64) -> String {
@@ -149,21 +151,22 @@ impl TimeStamped for WeatherMinutely {
 impl DailyWeather {
     pub fn sunset(&self) -> Option<String> {
         if let Some(time) = self.sunset {
-            Some(time_from(time, "%T"))
+            Some(time_from(time, "[hour]:[minute]"))
         } else {
             None
         }
     }
     pub fn sunrise(&self) -> Option<String> {
         if let Some(time) = self.sunrise {
-            Some(time_from(time, "%T"))
+            Some(time_from(time, "[hour]:[minute]"))
         } else {
             None
         }
     }
     pub fn day_of_week(&self) -> String {
         let date_time = datetime_from(self.dt);
-        let today = OffsetDateTime::now_local();
+        let local = std::time::SystemTime::now();
+        let today = OffsetDateTime::from(local);
         let today_date = today.date();
         let date = date_time.date();
         if today_date.year() == date.year()
@@ -213,9 +216,9 @@ pub async fn get_weather_data(units: Units, lat: f64, lon: f64) -> Option<Weathe
 impl WeatherAlert {
     pub fn when(&self) -> String {
         let start = date_from(self.start);
-        let start_time = time_from(self.start, "%T");
+        let start_time = time_from(self.start, "[hour]:[minute]");
         let end = date_from(self.end);
-        let end_time = time_from(self.end, "%T");
+        let end_time = time_from(self.end, "[hour]:[minute]");
 
         if start != end {
             format!("{} {} to {} {}", start, start_time, end, end_time)
