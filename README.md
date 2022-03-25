@@ -12,7 +12,7 @@ Requires the following dev packages (names vary by linux distribution package ma
 - graphene
 
 ## Install
-Requires [rust install](https://www.rust-lang.org/tools/install))
+Requires [rust install](https://www.rust-lang.org/tools/install)
 ```bash
 cargo install --path .
 ```
