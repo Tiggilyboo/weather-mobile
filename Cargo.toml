@@ -2,7 +2,7 @@
 name = "weather-mobile"
 version = "0.1.0"
 authors = ["Simon Willshire <me@simonwillshire.com>"]
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 dirs = "3.0.1"
@@ -12,7 +12,7 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 
 [dependencies.gtk]
-version = "0.3.1"
+version = "0.4.7"
 package = "gtk4"
 features = []
 
@@ -22,4 +22,4 @@ features = ["json"]
 
 [dependencies.time]
 version = "0.3.5"
-features = ["std","local-offset","formatting"]
+features = ["local-offset","formatting"]

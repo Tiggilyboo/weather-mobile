@@ -87,15 +87,15 @@ impl WeatherApplication {
         let location = EditableLabel::new("");
         location.set_visible(false);
 
-        let location_image = Image::from_icon_name(Some("mark-location"));
+        let location_image = Image::from_icon_name("mark-location");
 
         let location_search = Entry::new();
-        let location_search_button = Button::from_icon_name(Some("edit-find"));
+        let location_search_button = Button::from_icon_name("edit-find");
         let location_results = ComboBoxText::new();
         location_results.set_visible(false);
         location_results.set_id_column(0);
         
-        let refresh_button = Button::from_icon_name(Some("view-refresh"));
+        let refresh_button = Button::from_icon_name("view-refresh");
         refresh_button.set_visible(false);
 
         let location_box = gtk::Box::new(gtk::Orientation::Horizontal, 10);
@@ -303,15 +303,10 @@ impl WeatherApplication {
         self.location_results.connect_changed(move |combo| {
             if let Some(active_iter) = combo.active_iter() {
                 if let Some(model) = combo.model() {
-                    let location = model
-                        .get(&active_iter, 0).get::<String>()
-                        .expect("location from model at col 0 is String");
-                    let lat = model
-                        .get(&active_iter, 1).get::<f64>()
-                        .expect("lat from model at col 1 is F64");
-                    let lon = model
-                        .get(&active_iter, 2).get::<f64>()
-                        .expect("lon from model at col 2 is F64");
+                    let location: String = model.get(&active_iter, 0);
+                        //.expect("location from model at col 0 is String");
+                    let lat : f64 = model.get(&active_iter, 1);
+                    let lon : f64 = model.get(&active_iter, 2);
 
                     let interest = LocationPoint {
                         location,
@@ -438,7 +433,7 @@ impl WeatherApplication {
 
     fn update_current_image(&mut self, current: Option<CurrentWeather>) {
         let picture_path = current_picture_path(current.as_ref());
-        self.current_picture.set_filename(picture_path.to_str().unwrap());
+        self.current_picture.set_filename(picture_path.to_str());
     }
 
     fn update_current_weather(&mut self, current: Option<CurrentWeather>) {

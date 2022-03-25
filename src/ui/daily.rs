@@ -84,13 +84,13 @@ impl DayView {
         
         let sun_box = gtk::Box::new(gtk::Orientation::Horizontal, 5);
         if let Some(sunrise) = data.sunrise() {
-            let sunrise_img = Image::from_icon_name(Some("daytime-sunrise-symbolic"));
+            let sunrise_img = Image::from_icon_name("daytime-sunrise-symbolic");
             let sunrise = Label::new(Some(&sunrise));
             sun_box.append(&sunrise_img);
             sun_box.append(&sunrise);
         }
         if let Some(sunset) = data.sunset() {
-            let sunset_img = Image::from_icon_name(Some("daytime-sunset-symbolic"));
+            let sunset_img = Image::from_icon_name("daytime-sunset-symbolic");
             let sunset = Label::new(Some(&sunset));
             sun_box.append(&sunset_img);
             sun_box.append(&sunset);

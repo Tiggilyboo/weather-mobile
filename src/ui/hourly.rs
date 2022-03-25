@@ -26,7 +26,7 @@ pub fn build_wind_component(data: Option<f64>, units: &Units) -> Option<gtk::Box
     if let Some(speed) = data {
         let speed = &units.speed_value(speed);
         let wind_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-        wind_box.append(&Image::from_icon_name(Some(GUST_ICON)));
+        wind_box.append(&Image::from_icon_name(GUST_ICON));
         wind_box.append(&Label::new(Some(speed)));
 
         Some(wind_box)
@@ -39,7 +39,7 @@ pub fn build_precipitation_component(icon: &str, data: Option<f64>, units: &Unit
     if let Some(volume) = data {
         let rain_volume = &units.volume_value(volume);
         let rain_box = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-        rain_box.append(&Image::from_icon_name(Some(icon)));
+        rain_box.append(&Image::from_icon_name(icon));
         rain_box.append(&Label::new(Some(rain_volume)));
 
         Some(rain_box)
