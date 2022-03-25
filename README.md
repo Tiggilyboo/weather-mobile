@@ -1,12 +1,18 @@
 # Weather Mobile
 A simple GTK weather app to play with Linux Mobile development in GTK4 and OpenWeather API.
 
+## Dependances
+Requires the following dev packages (names vary by linux distribution package manager):
+
+- gtk4
+- curl
+- cairo
+- pango
+- openssl
+- graphene
+
 ## Install
-*Arch* (Requires `rust`, `cargo` dependencies)
-```bash
-makepkg --install
-```
-*Other* (Requires [rust install](https://www.rust-lang.org/tools/install))
+Requires [rust install](https://www.rust-lang.org/tools/install))
 ```bash
 cargo install --path .
 ```
